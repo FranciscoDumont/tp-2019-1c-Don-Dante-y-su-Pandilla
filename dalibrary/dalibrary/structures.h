@@ -25,13 +25,7 @@ MutexDebugLevel MUTEX_DEBUG_LEVEL = MX_ONLY_LOCK_UNLOCK;
 
 
 typedef enum _MessageType {
-	HANDSHAKE_NUMBER_GENERATOR_SERVER,
-	HANDSHAKE_RESPONSE,
-	NEW_TOTAL_WIDTH,
-	NEW_OFFSET_RENDER,
-	ASCIIFileTransmission,
-	WELCOME_SCREEN,
-	RANDOM_NUMBER
+	HANDSHAKE_RESPONSE
 } MessageType;
 
 typedef struct _MessageHeader {
@@ -52,14 +46,6 @@ typedef struct _MIDC {
 	char * name;
 } MIDC;
 t_list * MutexsList = null;
-
-
-
-typedef struct _ASCIIFile {
-	int ROWQ;
-	int COLQ;
-	char * matrix;
-} ASCIIFile;
 
 
 

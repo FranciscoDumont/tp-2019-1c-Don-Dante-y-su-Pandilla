@@ -3,6 +3,7 @@
 int server_function(int socket);
 
 int main(void) {
+	inform_thread_id("HOLA");
 	NETWORK_DEBUG_LEVEL = NW_ALL_DISPLAY;
 	int fd_socket;
 	int port = 8080;
