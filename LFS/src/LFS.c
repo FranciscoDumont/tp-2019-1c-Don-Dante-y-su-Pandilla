@@ -1,5 +1,6 @@
 #include <dalibrary/libmain.h>
 
+t_log * logger;
 t_config * config_file = null;
 LFSConfig config;
 
@@ -16,6 +17,8 @@ int main(int argc, char **argv) {
 	config.delay = config_get_int_value(config_file, "RETARDO");
 	config.value_size = config_get_int_value(config_file, "TAMAÑO_VALUE");
 	config.dump_delay = config_get_int_value(config_file, "TIEMPO_DUMP");
+
+	logger = log_create("filesystem_logger.log", "LFS", true, LOG_LEVEL_TRACE);
 
 	return EXIT_SUCCESS;
 }

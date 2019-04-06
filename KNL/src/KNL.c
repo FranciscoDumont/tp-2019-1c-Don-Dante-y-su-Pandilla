@@ -1,4 +1,6 @@
 #include <dalibrary/libmain.h>
+
+t_log * logger;
 t_config * config_file = null;
 KNLConfig config;
 
@@ -15,6 +17,8 @@ int main(int argc, char **argv) {
 	config.multiprocessing_grade = config_get_int_value(config_file, "MULTIPROCESAMIENTO");
 	config.metadata_refresh = config_get_int_value(config_file, "METADATA_REFRESH");
 	config.exec_delay = config_get_int_value(config_file, "SLEEP_EJECUCION");
+
+	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
 
 	return EXIT_SUCCESS;
 }
