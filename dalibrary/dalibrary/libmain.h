@@ -9,6 +9,7 @@
 
 
 #include <commons/collections/list.h>
+#include <commons/config.h>
 
 
 

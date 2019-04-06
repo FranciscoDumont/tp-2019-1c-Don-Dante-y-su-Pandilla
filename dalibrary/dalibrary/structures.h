@@ -49,4 +49,44 @@ t_list * MutexsList = null;
 
 
 
+//Lissandra File System
+typedef struct _LFSConfig {
+	int port;
+	char * mounting_point;
+	int delay;
+	int value_size;
+	int dump_delay;
+} LFSConfig;
+
+
+
+//Memory
+typedef struct _MEMConfig {
+	int port;
+	char * lfs_ip;
+	int lfs_port;
+	char ** seeds_ips;
+	char ** seeds_ports;
+	int access_delay;
+	int lfs_delay;
+	int memsize;
+	int journal_time;
+	int gossiping_time;
+	int memory_id;
+} MEMConfig;
+
+
+
+//Kernel
+typedef struct _KNLConfig {
+	char * a_memory_ip;
+	int a_memory_port;
+	int quamtum;
+	int multiprocessing_grade;
+	int metadata_refresh;
+	int exec_delay;
+} KNLConfig;
+
+
+
 #endif /* DALIBRARY_STRUCTURES_H_ */
