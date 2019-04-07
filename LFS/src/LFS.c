@@ -4,7 +4,6 @@ t_log * logger;
 t_config * config_file = null;
 LFSConfig config;
 
-
 int main(int argc, char **argv) {
 	if (argc != 2) {
 		config_file = config_create("lfs01.cfg");

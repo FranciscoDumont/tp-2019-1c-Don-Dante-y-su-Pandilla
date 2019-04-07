@@ -26,7 +26,7 @@ endif
 all: server_test
 
 dependents:
-	-cd /home/utnso/workspace/tp-2019-1c-Don-Dante-y-su-Pandilla/dalibrary/Debug && $(MAKE) all
+	-cd /home/utnso/workspace/tp-2019-1c-Don-Dante-y-su-Pandilla/dalibrary/Debug && $(MAKE) clean all
 
 # Tool invocations
 server_test: $(OBJS) $(USER_OBJS) /home/utnso/workspace/tp-2019-1c-Don-Dante-y-su-Pandilla/dalibrary/Debug/libdalibrary.so
