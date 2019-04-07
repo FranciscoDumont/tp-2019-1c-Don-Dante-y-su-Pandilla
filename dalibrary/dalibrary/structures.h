@@ -1,5 +1,6 @@
 #ifndef DALIBRARY_STRUCTURES_H_
 #define DALIBRARY_STRUCTURES_H_
+#define IP_LENGTH 20
 
 
 
@@ -12,7 +13,7 @@ typedef enum _NetworkDebugLevel {
 	NW_NETWORK_ERRORS,
 	NW_ALL_DISPLAY
 } NetworkDebugLevel;
-NetworkDebugLevel NETWORK_DEBUG_LEVEL = NW_NETWORK_ERRORS;
+NetworkDebugLevel NETWORK_DEBUG_LEVEL = NW_NO_DISPLAY;
 
 typedef enum _MutexDebugLevel {
 	MX_NO_DISPLAY,
@@ -25,7 +26,8 @@ MutexDebugLevel MUTEX_DEBUG_LEVEL = MX_ONLY_LOCK_UNLOCK;
 
 
 typedef enum _MessageType {
-	HANDSHAKE_RESPONSE
+	HANDSHAKE_RESPONSE,
+	GOSSIPING_REQUEST
 } MessageType;
 
 typedef struct _MessageHeader {
@@ -67,13 +69,21 @@ typedef struct _MEMConfig {
 	int lfs_port;
 	char ** seeds_ips;
 	char ** seeds_ports;
+	int seeds_q;
 	int access_delay;
 	int lfs_delay;
 	int memsize;
 	int journal_time;
 	int gossiping_time;
 	int memory_id;
+	int mysocket;
 } MEMConfig;
+
+typedef struct _MemPoolData {
+	char * ip;
+	int port;
+	int memory_id;
+} MemPoolData;
 
 
 
@@ -81,7 +91,7 @@ typedef struct _MEMConfig {
 typedef struct _KNLConfig {
 	char * a_memory_ip;
 	int a_memory_port;
-	int quamtum;
+	int quantum;
 	int multiprocessing_grade;
 	int metadata_refresh;
 	int exec_delay;
