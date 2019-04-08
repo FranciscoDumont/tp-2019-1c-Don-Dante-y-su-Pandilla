@@ -67,7 +67,14 @@ typedef struct _LFSMetadata {
 
 	char * metadatapath;
 	char * bitarraypath;
+
+	t_bitarray * bitarray;
 } LFSMetadata;
+
+typedef struct _LFSFileStruct {
+	int size;
+	t_list * blocks;
+} LFSFileStruct;
 
 
 
