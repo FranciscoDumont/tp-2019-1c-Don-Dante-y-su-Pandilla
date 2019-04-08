@@ -60,6 +60,15 @@ typedef struct _LFSConfig {
 	int dump_delay;
 } LFSConfig;
 
+typedef struct _LFSMetadata {
+	int block_size;
+	int blocks;
+	char * magic_number;
+
+	char * metadatapath;
+	char * bitarraypath;
+} LFSMetadata;
+
 
 
 //Memory
