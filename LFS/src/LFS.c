@@ -164,27 +164,18 @@ LFSFileStruct * save_file_contents(char * content, char * file_path) {
 	save_bitmap_to_fs();
 
 	file_struct.blocks = blocks;
-	file_struct.size = blocks->elements_count * 8;
+	file_struct.size = blocks->elements_count * fsconfig.block_size;
 
-	/*t_config * this_file_config = config_create(file_config_path);
-
-	config_set_value(this_file_config, "SIZE", file_struct.size);
-	config_save(this_file_config);
-
-	log_info(logger, "HOLA");
-	char * buffer = malloc(sizeof(char) * 3 * blocks->elements_count);
-	for(a=0 ; a<3 * blocks->elements_count ; a++) {
-		buffer[a] = '\0';
+	FILE * strfile = fopen(file_config_path, "w");
+	fprintf(strfile, "SIZE=%d\n", file_struct.size);
+	fprintf(strfile, "BLOCKS=[", file_struct.size);
+	for(a=0 ; a<blocks->elements_count-1 ; a++) {
+		fprintf(strfile, "%d,", list_get(blocks, a));
 	}
-	for(a=0 ; a<(blocks->elements_count-1) ; a++) {
-		sprintf(buffer, "%d,", list_get(blocks, a));
-	}
-	sprintf(buffer, "%d", list_get(blocks, a));
-	char ** blocksstr = string_split(buffer, "\n");
+	fprintf(strfile, "%d]", list_get(blocks, a));
+	fclose(strfile);
 
-	config_set_value(this_file_config, "BLOCKS", blocksstr);
-
-	free(file_config_path);*/
+	free(file_config_path);
 
 	return &file_struct;
 }
