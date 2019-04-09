@@ -64,4 +64,8 @@ char * get_thread_name(int tid);
 
 
 
+unsigned long unix_epoch();
+
+
+
 #endif

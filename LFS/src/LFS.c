@@ -28,8 +28,6 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	log_info(logger, "%s", get_file_contents("archivo.bin"));
-
 	return EXIT_SUCCESS;
 }
 

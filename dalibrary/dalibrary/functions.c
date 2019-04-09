@@ -408,3 +408,7 @@ char * get_thread_name(int tid) {
 		return node->name;
 	}
 }
+
+unsigned long unix_epoch() {
+	return (unsigned)time(NULL);
+}
