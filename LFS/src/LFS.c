@@ -9,6 +9,7 @@ void up_filesystem();
 void free_block_list(int * blocks, int blocks_q);
 t_list * reserve_blocks(int blocks_q);
 LFSFileStruct * save_file_contents(char * content, char * file_path);
+char * get_file_contents(char * file_path);
 
 int main(int argc, char **argv) {
 	if (argc != 2) {
@@ -27,7 +28,7 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	save_file_contents("hola", "archivo.bin");
+	log_info(logger, "%s", get_file_contents("archivo.bin"));
 
 	return EXIT_SUCCESS;
 }
@@ -71,8 +72,6 @@ void up_filesystem() {
 	fclose(b);
 
 	fsconfig.bitarray = bitarray_create_with_mode(ba, fsconfig.blocks / 8, MSB_FIRST);
-
-	dump_bitmap();
 }
 
 void free_block_list(int * blocks, int blocks_q) {
@@ -178,4 +177,50 @@ LFSFileStruct * save_file_contents(char * content, char * file_path) {
 	free(file_config_path);
 
 	return &file_struct;
+}
+
+char * get_file_contents(char * file_path) {
+	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 22));
+	strcpy(file_config_path, config.mounting_point);
+	strcat(file_config_path, file_path);
+
+	FILE * auxfile = fopen(file_config_path, "r");
+	if(auxfile == null) {
+		log_error(logger, "File not found in filesystem");
+		return null;
+	}
+	fclose(auxfile);
+
+	t_config * file_data = config_create(file_config_path);
+	char ** blocks = config_get_array_value(file_data, "BLOCKS");
+	char * blocks_str = config_get_string_value(file_data, "BLOCKS");
+	int blocks_q = 0, a;
+
+	if(strcmp("[]", blocks_str) != 0) {
+		blocks_q++;
+		for(a = 0 ; a < strlen(blocks_str) ; a++) {
+			if(blocks_str[a] == ',') blocks_q++;
+		}
+	}
+	free(blocks_str);
+
+	char * file_content = malloc(config_get_int_value(file_data, "SIZE"));
+
+	for(a=0 ; a<blocks_q ; a++) {
+		char * this_block_path = malloc( strlen(config.mounting_point) + 22 );
+		strcpy(this_block_path, config.mounting_point);
+		strcat(this_block_path, "Bloques/");
+		strcat(this_block_path, blocks[a]);
+		strcat(this_block_path, ".bin");
+
+		FILE * block = fopen(this_block_path, "r");
+		fscanf(block, "%s", file_content + (a*fsconfig.block_size));
+		fclose(block);
+
+		free(this_block_path);
+	}
+
+	free(file_config_path);
+
+	return file_content;
 }
