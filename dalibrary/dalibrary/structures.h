@@ -76,6 +76,23 @@ typedef struct _LFSFileStruct {
 	t_list * blocks;
 } LFSFileStruct;
 
+typedef struct _MemtableKeyReg {
+	unsigned long timestamp;
+	int key;
+	char * value;
+} MemtableKeyReg;
+
+typedef struct _MemtableTableReg {
+	char * table_name;
+	t_list * records;
+} MemtableTableReg;
+
+typedef enum _ConsistencyTypes {
+	STRONG_CONSISTENCY,
+	EVENTUAL_CONSISTENCY,
+	STRONG_HASH_CONSISTENCY
+} ConsistencyTypes;
+
 
 
 //Memory

@@ -409,6 +409,20 @@ char * get_thread_name(int tid) {
 	}
 }
 
+
+
 unsigned long unix_epoch() {
 	return (unsigned)time(NULL);
+}
+
+char * consistency_to_char(ConsistencyTypes consistency) {
+	switch(consistency) {
+	case STRONG_CONSISTENCY:
+		return "SC";
+	case STRONG_HASH_CONSISTENCY:
+		return "SHC";
+	case EVENTUAL_CONSISTENCY:
+		return "EC";
+	}
+	return "UNK";
 }

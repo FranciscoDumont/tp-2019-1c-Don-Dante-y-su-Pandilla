@@ -18,10 +18,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <dirent.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <string.h>
 #include <netdb.h>
+#include <string.h>
+#include <ctype.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -65,6 +67,7 @@ char * get_thread_name(int tid);
 
 
 unsigned long unix_epoch();
+char * consistency_to_char(ConsistencyTypes consistency);
 
 
 
