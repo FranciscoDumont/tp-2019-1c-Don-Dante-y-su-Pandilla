@@ -95,6 +95,7 @@ typedef struct _MemtableTableReg {
 	int compaction_time;
 	t_list * records;
 	t_list * dumping_queue;
+	t_list * temp_c;
 } MemtableTableReg;
 
 

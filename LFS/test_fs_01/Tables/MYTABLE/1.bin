@@ -1,2 +1,2 @@
-SIZE=0
-BLOCKS=[]
+SIZE=14
+BLOCKS=[0,1,2,3,4,5,6]
