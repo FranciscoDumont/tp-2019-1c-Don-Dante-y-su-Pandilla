@@ -47,11 +47,13 @@ int main(int argc, char **argv) {
 
 	//log_info(logger, "%s", select_fs("mytable", 4));
 
-	insert_fs("mytable", 4, "hola", 4568ul);
-	insert_fs("mytable", 8, "chau", 9987ul);
-	insert_fs("FUTBOL", 166, "unvalor", 119873ul);
+	//insert_fs("mytable", 4, "hola", 4568ul);
+	//insert_fs("mytable", 8, "chau", 9987ul);
+	//insert_fs("FUTBOL", 166, "unvalor", 119873ul);
 	insert_fs("mytable", 4, "slu2", 6542ul);
 	dump_memtable();
+
+	log_info(logger, "%s", get_file_contents("Tables/MYTABLE/1.tmp"));
 
 	return EXIT_SUCCESS;
 }
@@ -716,7 +718,7 @@ void dump_memtable() {
 		int * dump_multiplier = malloc(sizeof(int));
 		int dump_found = 0;
 
-		(*dump_multiplier) = -1;
+		(*dump_multiplier) = 0;
 
 		while(dump_found == 0) {
 			dump_found = 1;
@@ -732,47 +734,40 @@ void dump_memtable() {
 
 		log_info(logger, "TABLE %s", table->table_name);
 
-		for(b=1 ; b<=table->partitions ; b++) {
-			log_info(logger, "   PARTITION %d", b);
-			counter = 0;
-
-			if(table->records == null){
-				table->records = list_create();
-			}
-
-			char * partition_content;
-			if(table->records->elements_count == 0) {
-				partition_content = malloc(sizeof(char));
-				partition_content[0] = '\0';
-			} else {
-				partition_content = malloc( table->records->elements_count * (456) );
-				partition_content[0] = '\0';
-				for(c=0 ; c<table->records->elements_count ; c++) {
-					MemtableKeyReg * reg = list_get(table->records, c);
-
-					if(get_key_partition(table->table_name, reg->key) == b) {
-						char * thisline = malloc(config.value_size + sizeof(int) + (12 + 2) * sizeof(int));
-						thisline[0] = '\0';
-						if(counter != 0) {
-							strcat(partition_content, "\n");
-						}
-						sprintf(thisline, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
-						strcat(partition_content, thisline);
-
-						counter++;
-					}
-				}
-			}
-
-			char * pfilepath = malloc(sizeof(char) * (12 + strlen(table->table_name) + 3));
-			sprintf(pfilepath, "Tables/%s/%d.tmp", table->table_name, b + ((*dump_multiplier) * table->partitions));
-
-			list_add(table->dumping_queue, *dump_multiplier);
-
-			save_file_contents(partition_content, pfilepath);
-
-			free(partition_content);
-			free(pfilepath);
+		if(table->records == null){
+			table->records = list_create();
 		}
+
+		char * temp_content;
+		if(table->records->elements_count == 0) {
+			temp_content = malloc(sizeof(char));
+		} else {
+			temp_content = malloc( table->records->elements_count * (456) );
+		}
+		temp_content[0] = '\0';
+		counter = 0;
+
+		for(c=0 ; c<table->records->elements_count ; c++) {
+			MemtableKeyReg * reg = list_get(table->records, c);
+
+			char * thisline = malloc(config.value_size + sizeof(int) + (12 + 2) * sizeof(int));
+			thisline[0] = '\0';
+			if(counter != 0) {
+				strcat(temp_content, "\n");
+			}
+			sprintf(thisline, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+			strcat(temp_content, thisline);
+
+			counter++;
+		}
+
+		char * pfilepath = malloc(sizeof(char) * (12 + strlen(table->table_name) + 3));
+		sprintf(pfilepath, "Tables/%s/%d.tmp", table->table_name, (*dump_multiplier));
+		save_file_contents(temp_content, pfilepath);
+
+		list_add(table->dumping_queue, dump_multiplier);
+
+		free(temp_content);
+		free(pfilepath);
 	}
 }
