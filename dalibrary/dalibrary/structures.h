@@ -94,6 +94,7 @@ typedef struct _MemtableTableReg {
 	int partitions;
 	int compaction_time;
 	t_list * records;
+	t_list * dumping_queue;
 } MemtableTableReg;
 
 

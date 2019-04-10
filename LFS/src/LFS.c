@@ -45,7 +45,13 @@ int main(int argc, char **argv) {
 	//create_fs("mytable", STRONG_HASH_CONSISTENCY, 4, 6540);
 	//drop_fs("mytable");
 
-	log_info(logger, "%s", select_fs("mytable", 4));
+	//log_info(logger, "%s", select_fs("mytable", 4));
+
+	insert_fs("mytable", 4, "hola", 4568ul);
+	insert_fs("mytable", 8, "chau", 9987ul);
+	insert_fs("FUTBOL", 166, "unvalor", 119873ul);
+	insert_fs("mytable", 4, "slu2", 6542ul);
+	dump_memtable();
 
 	return EXIT_SUCCESS;
 }
@@ -148,9 +154,11 @@ void up_filesystem() {
 					reg->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
 					reg->partitions = config_get_int_value(config, "PARTITIONS");
 					reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
+					reg->dumping_queue = list_create();
 
 					free(config);
 
+					inform_table_metadata(reg);
 					list_add(memtable, reg);
 				}
 			}
@@ -225,6 +233,7 @@ LFSFileStruct * save_file_contents(char * content, char * file_path) {
 	}
 
 	for(a=0 ; a<blocks->elements_count ; a++) {
+
 		char * this_file_stream = malloc(fsconfig.block_size + 1);
 		memcpy(this_file_stream, (content + (a*fsconfig.block_size)), fsconfig.block_size);
 		this_file_stream[fsconfig.block_size] = '\0';
@@ -256,7 +265,11 @@ LFSFileStruct * save_file_contents(char * content, char * file_path) {
 	for(a=0 ; a<blocks->elements_count-1 ; a++) {
 		fprintf(strfile, "%d,", list_get(blocks, a));
 	}
-	fprintf(strfile, "%d]", list_get(blocks, a));
+	if(blocks_q != 0) {
+		fprintf(strfile, "%d]", list_get(blocks, a));
+	} else {
+		fprintf(strfile, "]");
+	}
 	fclose(strfile);
 
 	free(file_config_path);
@@ -426,6 +439,8 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 		return -1;
 	}
 
+	log_info(logger, "Table %s creation", table_name);
+
 	char * tables_basedir = generate_tables_basedir();
 	char * commandbuffer = malloc(sizeof(char) * (6 + strlen(tables_basedir) + strlen(table_name)));
 	sprintf(commandbuffer, "mkdir %s%s", tables_basedir, table_name);
@@ -467,6 +482,7 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 	tablereg->consistency = consistency;
 	tablereg->partitions = partitions;
 	tablereg->records = null;
+	tablereg->dumping_queue = list_create();
 
 	list_add(memtable, tablereg);
 
@@ -689,4 +705,74 @@ void drop_fs(char * table_name) {
 	system(remove_command);
 
 	free(remove_command);
+}
+
+void dump_memtable() {
+	int a, b, c, d, counter;
+
+	for(a=0 ; a<memtable->elements_count ; a++) {
+		MemtableTableReg * table = list_get(memtable, a);
+
+		int * dump_multiplier = malloc(sizeof(int));
+		int dump_found = 0;
+
+		(*dump_multiplier) = -1;
+
+		while(dump_found == 0) {
+			dump_found = 1;
+			(*dump_multiplier)++;
+
+			for(d=0 ; d<table->dumping_queue->elements_count ; d++) {
+				int * v = list_get(table->dumping_queue, d);
+				if((*dump_multiplier) == (*v)) {
+					dump_found = 0;
+				}
+			}
+		}
+
+		log_info(logger, "TABLE %s", table->table_name);
+
+		for(b=1 ; b<=table->partitions ; b++) {
+			log_info(logger, "   PARTITION %d", b);
+			counter = 0;
+
+			if(table->records == null){
+				table->records = list_create();
+			}
+
+			char * partition_content;
+			if(table->records->elements_count == 0) {
+				partition_content = malloc(sizeof(char));
+				partition_content[0] = '\0';
+			} else {
+				partition_content = malloc( table->records->elements_count * (456) );
+				partition_content[0] = '\0';
+				for(c=0 ; c<table->records->elements_count ; c++) {
+					MemtableKeyReg * reg = list_get(table->records, c);
+
+					if(get_key_partition(table->table_name, reg->key) == b) {
+						char * thisline = malloc(config.value_size + sizeof(int) + (12 + 2) * sizeof(int));
+						thisline[0] = '\0';
+						if(counter != 0) {
+							strcat(partition_content, "\n");
+						}
+						sprintf(thisline, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+						strcat(partition_content, thisline);
+
+						counter++;
+					}
+				}
+			}
+
+			char * pfilepath = malloc(sizeof(char) * (12 + strlen(table->table_name) + 3));
+			sprintf(pfilepath, "Tables/%s/%d.tmp", table->table_name, b + ((*dump_multiplier) * table->partitions));
+
+			list_add(table->dumping_queue, *dump_multiplier);
+
+			save_file_contents(partition_content, pfilepath);
+
+			free(partition_content);
+			free(pfilepath);
+		}
+	}
 }
