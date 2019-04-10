@@ -450,6 +450,11 @@ char * select_fs(char * table_name, int key) {
 	return final_hit->value;
 }
 
+void inform_table_metadata(MemtableTableReg * reg) {
+	log_info(logger, "TABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s",
+		reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
+}
+
 void describe_fs(char * table_name) { //table_name puede ser nulo
 	if(table_name == null) {
 		DIR *d;
@@ -476,8 +481,7 @@ void describe_fs(char * table_name) { //table_name puede ser nulo
 						reg->partitions = config_get_int_value(config, "PARTITIONS");
 						reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
-						log_info(logger, "TABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s",
-								reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
+						inform_table_metadata(reg);
 
 						free(config);
 						free(reg->table_name);
@@ -507,8 +511,7 @@ void describe_fs(char * table_name) { //table_name puede ser nulo
 		reg->partitions = config_get_int_value(config, "PARTITIONS");
 		reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
-		log_info(logger, "TABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s",
-				reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
+		inform_table_metadata(reg);
 
 		free(config);
 		free(reg->table_name);
