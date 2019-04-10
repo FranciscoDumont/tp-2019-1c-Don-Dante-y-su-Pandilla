@@ -36,8 +36,10 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	//insert("tabla1", 3, "Valor", unix_epoch());
-	//create("table1", STRONG_CONSISTENCY, 2, 6000);
+	create("table1", STRONG_CONSISTENCY, 2, 6000);
+	create("table2", STRONG_HASH_CONSISTENCY, 2, 5000);
+	create("table3", EVENTUAL_CONSISTENCY, 2, 16000);
+	create("table2", EVENTUAL_CONSISTENCY, 5, 7500);
 
 	return EXIT_SUCCESS;
 }
@@ -107,7 +109,8 @@ void up_filesystem() {
 
 					MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
 					reg->records = null;
-					reg->table_name = dir->d_name;
+					reg->table_name = malloc(sizeof(char) * strlen(dir->d_name));
+					strcpy(reg->table_name, dir->d_name);
 
 					list_add(memtable, reg);
 				}
@@ -284,18 +287,18 @@ int insert(char * table_name, int key, char * value, unsigned long timestamp) {
 		log_error(logger, "Non existent table");
 		return -1;
 	}
+
 	if(tablereg->records == null) {
 		tablereg->records = list_create();
 	}
 	MemtableKeyReg * registry = malloc(sizeof(MemtableKeyReg));
 	registry->key = key;
 	registry->timestamp = timestamp;
+
 	registry->value = malloc(config.value_size);
 	strcpy(registry->value, value);
 
 	list_add(tablereg->records, registry);
-	free(table_name);
-	free(value);
 
 	return 0;
 }
@@ -308,8 +311,9 @@ char * generate_tables_basedir() {
 }
 
 char * generate_table_basedir(char * table_name) {
-	char * table_basedir = malloc(sizeof(char) * (strlen(generate_tables_basedir() + 1 + strlen(table_name))));
-	strcpy(table_basedir, generate_tables_basedir());
+	char * tables_base = generate_tables_basedir();
+	char * table_basedir = malloc(sizeof(char) * (strlen(tables_base) + 1 + strlen(table_name)));
+	strcpy(table_basedir, tables_base);
 	strcat(table_basedir, table_name);
 	strcat(table_basedir, "/");
 	return table_basedir;
@@ -317,6 +321,7 @@ char * generate_table_basedir(char * table_name) {
 
 int create(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time) {
 	table_name = to_upper_string(table_name);
+	log_info(logger, "create %s", table_name);
 	MemtableTableReg * tablereg = table_exists(table_name);
 	if(tablereg != null) {
 		log_error(logger, "The table already exists");
@@ -329,8 +334,6 @@ int create(char * table_name, ConsistencyTypes consistency, int partitions, int 
 
 	system(commandbuffer);
 	free(commandbuffer);
-
-	log_info(logger, "ejecutado");
 
 	char * table_basedir = generate_table_basedir(table_name);
 
@@ -351,4 +354,6 @@ int create(char * table_name, ConsistencyTypes consistency, int partitions, int 
 	tablereg->records = null;
 
 	list_add(memtable, tablereg);
+
+	log_info(logger, "created");
 }
