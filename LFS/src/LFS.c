@@ -39,7 +39,9 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	describe_fs("table4");
+	//describe_fs("table4");
+	create_fs("mytable", STRONG_HASH_CONSISTENCY, 4, 6540);
+	drop_fs("mytable");
 
 	return EXIT_SUCCESS;
 }
@@ -311,6 +313,57 @@ char * get_file_contents(char * file_path) {
 	return file_content;
 }
 
+void remove_file(char * file_path) {
+	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 22));
+	strcpy(file_config_path, config.mounting_point);
+	strcat(file_config_path, file_path);
+
+	FILE * auxfile = fopen(file_config_path, "r");
+	if(auxfile == null) {
+		log_error(logger, "File not found in filesystem");
+		return;
+	}
+	fclose(auxfile);
+
+	t_config * file_data = config_create(file_config_path);
+	char ** blocks = config_get_array_value(file_data, "BLOCKS");
+	char * blocks_str = config_get_string_value(file_data, "BLOCKS");
+	int blocks_q = 0, a;
+
+	if(strcmp("[]", blocks_str) != 0) {
+		blocks_q++;
+		for(a = 0 ; a < strlen(blocks_str) ; a++) {
+			if(blocks_str[a] == ',') blocks_q++;
+		}
+	}
+	free(blocks_str);
+
+	char * file_content = malloc(config_get_int_value(file_data, "SIZE"));
+	file_content[0] = '\0';
+
+	for(a=0 ; a<blocks_q ; a++) {
+		char * this_block_path = malloc( strlen(config.mounting_point) + 22 );
+		strcpy(this_block_path, config.mounting_point);
+		strcat(this_block_path, "Bloques/");
+		strcat(this_block_path, blocks[a]);
+		strcat(this_block_path, ".bin");
+
+		bitarray_clean_bit(fsconfig.bitarray, atoi(blocks[a]));
+
+		free(this_block_path);
+	}
+
+	char * remove_command = malloc(sizeof(char) * (strlen(file_config_path) + 3));
+	strcpy(remove_command, "rm ");
+	strcat(remove_command, file_config_path);
+
+	system(remove_command);
+
+	free(remove_command);
+
+	save_bitmap_to_fs();
+}
+
 //API
 
 MemtableTableReg * table_exists(char * table_name) {
@@ -377,6 +430,22 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 
 	fclose(metadatafile);
 	free(metadatafilepath);
+
+	int a;
+	for(a=1 ; a<=partitions ; a++) {
+		char * thispath = malloc(sizeof(char) * (strlen(generate_table_basedir(table_name)) + 3 + 4));
+		char * tnum = malloc(sizeof(char) * 3);
+		strcpy(thispath, generate_table_basedir(table_name));
+		sprintf(tnum, "%d", a);
+		strcat(thispath, tnum);
+		strcat(thispath, ".bin");
+
+		FILE * partition = fopen(thispath, "w");
+		fprintf(partition, "SIZE=0\nBLOCKS=[]");
+		fclose(partition);
+		free(thispath);
+		free(tnum);
+	}
 
 	tablereg = malloc(sizeof(MemtableTableReg));
 	tablereg->table_name = table_name;
@@ -518,4 +587,58 @@ void describe_fs(char * table_name) { //table_name puede ser nulo
 		free(reg);
 		free(metadatafilepath);
 	}
+}
+
+void drop_fs(char * table_name) {
+	table_name = to_upper_string(table_name);
+	int index = -1, a = 0;
+
+	void search(MemtableTableReg * table) {
+		if(strcmp(table->table_name, table_name) == 0) {
+			index = a;
+		} else {
+			a++;
+		}
+	}
+	list_iterate(memtable, search);
+
+	if(index != -1) {
+		MemtableTableReg * reg = list_get(memtable, index);
+		list_remove(memtable, index);
+		free(reg);
+	}
+	char * metadatafilepath = generate_table_metadata_path(table_name);
+	FILE * t = fopen(metadatafilepath, "r");
+	if(t == null) {
+		return;
+	}
+	fclose(t);
+	t_config * config = config_create(metadatafilepath);
+	free(metadatafilepath);
+
+	int partitions = config_get_int_value(config, "PARTITIONS");
+	for(a=1 ; a<=partitions ; a++) {
+		char * thiscommand = malloc(sizeof(char) * (7 + strlen(table_name) + 5 + 3));
+		char * tnum = malloc(sizeof(char) * 3);
+		strcpy(thiscommand, "Tables/");
+		strcat(thiscommand, table_name);
+		sprintf(tnum, "/%d", a);
+		strcat(thiscommand, tnum);
+		strcat(thiscommand, ".bin");
+
+		log_info(logger, "remove file %s", thiscommand);
+
+		remove_file(thiscommand);
+
+		free(tnum);
+		free(thiscommand);
+	}
+
+	char * remove_command = malloc(sizeof(char) * (strlen(generate_table_basedir(table_name)) + 6));
+	strcpy(remove_command, "rm -r ");
+	strcat(remove_command, generate_table_basedir(table_name));
+
+	system(remove_command);
+
+	free(remove_command);
 }
