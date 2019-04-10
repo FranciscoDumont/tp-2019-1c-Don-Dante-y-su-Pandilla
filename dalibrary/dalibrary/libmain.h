@@ -68,6 +68,7 @@ char * get_thread_name(int tid);
 
 unsigned long unix_epoch();
 char * consistency_to_char(ConsistencyTypes consistency);
+ConsistencyTypes char_to_consistency(char * consistency);
 
 
 

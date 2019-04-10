@@ -426,3 +426,15 @@ char * consistency_to_char(ConsistencyTypes consistency) {
 	}
 	return "UNK";
 }
+
+ConsistencyTypes char_to_consistency(char * consistency) {
+	if(strcmp(consistency, "SC")) {
+		return STRONG_CONSISTENCY;
+	}
+	if(strcmp(consistency, "SHC")) {
+		return STRONG_HASH_CONSISTENCY;
+	}
+	if(strcmp(consistency, "EC")) {
+		return EVENTUAL_CONSISTENCY;
+	}
+}

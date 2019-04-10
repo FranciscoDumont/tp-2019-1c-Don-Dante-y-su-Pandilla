@@ -71,6 +71,12 @@ typedef struct _LFSMetadata {
 	t_bitarray * bitarray;
 } LFSMetadata;
 
+typedef enum _ConsistencyTypes {
+	STRONG_CONSISTENCY,
+	EVENTUAL_CONSISTENCY,
+	STRONG_HASH_CONSISTENCY
+} ConsistencyTypes;
+
 typedef struct _LFSFileStruct {
 	int size;
 	t_list * blocks;
@@ -84,14 +90,11 @@ typedef struct _MemtableKeyReg {
 
 typedef struct _MemtableTableReg {
 	char * table_name;
+	ConsistencyTypes consistency;
+	int partitions;
+	int compaction_time;
 	t_list * records;
 } MemtableTableReg;
-
-typedef enum _ConsistencyTypes {
-	STRONG_CONSISTENCY,
-	EVENTUAL_CONSISTENCY,
-	STRONG_HASH_CONSISTENCY
-} ConsistencyTypes;
 
 
 

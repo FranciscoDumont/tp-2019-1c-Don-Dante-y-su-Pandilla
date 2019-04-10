@@ -14,6 +14,9 @@ LFSFileStruct * save_file_contents(char * content, char * file_path);
 char * get_file_contents(char * file_path);
 
 char * generate_tables_basedir();
+char * generate_table_basedir(char * table_name);
+
+char * select_fs(char * table_name, int key);
 
 char * to_upper_string(char * sPtr);
 
@@ -36,10 +39,11 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	create("table1", STRONG_CONSISTENCY, 2, 6000);
-	create("table2", STRONG_HASH_CONSISTENCY, 2, 5000);
-	create("table3", EVENTUAL_CONSISTENCY, 2, 16000);
-	create("table2", EVENTUAL_CONSISTENCY, 5, 7500);
+	insert_fs("table1", 3, "seda", 779ul);
+	insert_fs("table1", 2, "chau", 498ul);
+	insert_fs("table1", 3, "hola", 156ul);
+
+	log_info(logger, "%s", select_fs("table1", 3));
 
 	return EXIT_SUCCESS;
 }
@@ -52,6 +56,31 @@ char * to_upper_string(char * sPtr) {
 	}
 	temp[a] = '\0';
 	return temp;
+}
+
+char * generate_tables_basedir() {
+	char * tables_basedir = malloc( strlen(config.mounting_point) + 22 );
+	strcpy(tables_basedir, config.mounting_point);
+	strcat(tables_basedir, "Tables/");
+	return tables_basedir;
+}
+
+char * generate_table_basedir(char * table_name) {
+	table_name = to_upper_string(table_name);
+	char * tables_base = generate_tables_basedir();
+	char * table_basedir = malloc(sizeof(char) * (strlen(tables_base) + 1 + strlen(table_name)));
+	strcpy(table_basedir, tables_base);
+	strcat(table_basedir, table_name);
+	strcat(table_basedir, "/");
+	return table_basedir;
+}
+
+char * generate_table_metadata_path(char * table_name) {
+	char * table_basedir = generate_table_basedir(table_name);
+	char * metadatafilepath = malloc(sizeof(char) * (strlen(table_basedir) + 13));
+	strcpy(metadatafilepath, table_basedir);
+	strcat(metadatafilepath, "Metadata.bin");
+	return metadatafilepath;
 }
 
 void up_filesystem() {
@@ -106,11 +135,19 @@ void up_filesystem() {
 					full_path[0] = '\0';
 					strcat(full_path, path);
 					strcat(full_path, dir->d_name);
+					strcat(full_path, "/Metadata.bin");
+
+					t_config * config = config_create(full_path);
 
 					MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
 					reg->records = null;
 					reg->table_name = malloc(sizeof(char) * strlen(dir->d_name));
 					strcpy(reg->table_name, dir->d_name);
+					reg->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
+					reg->partitions = config_get_int_value(config, "PARTITIONS");
+					reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
+
+					free(config);
 
 					list_add(memtable, reg);
 				}
@@ -251,6 +288,7 @@ char * get_file_contents(char * file_path) {
 	free(blocks_str);
 
 	char * file_content = malloc(config_get_int_value(file_data, "SIZE"));
+	file_content[0] = '\0';
 
 	for(a=0 ; a<blocks_q ; a++) {
 		char * this_block_path = malloc( strlen(config.mounting_point) + 22 );
@@ -259,8 +297,14 @@ char * get_file_contents(char * file_path) {
 		strcat(this_block_path, blocks[a]);
 		strcat(this_block_path, ".bin");
 
+		char * this_block_content = malloc(config.value_size + 1);
+
 		FILE * block = fopen(this_block_path, "r");
-		fscanf(block, "%s", file_content + (a*fsconfig.block_size));
+		fread(this_block_content, config.value_size, 1, block);
+		this_block_content[fsconfig.block_size] = '\0';
+
+		strcat(file_content, this_block_content);
+
 		fclose(block);
 
 		free(this_block_path);
@@ -281,7 +325,15 @@ MemtableTableReg * table_exists(char * table_name) {
 	return list_find(memtable, search);
 }
 
-int insert(char * table_name, int key, char * value, unsigned long timestamp) {
+int get_key_partition(char * table_name, int key) {
+	MemtableTableReg * table = table_exists(table_name);
+	if(table == null) {
+		return -1;
+	}
+	return (key % table->partitions) + 1;
+}
+
+int insert_fs(char * table_name, int key, char * value, unsigned long timestamp) {
 	MemtableTableReg * tablereg = table_exists(table_name);
 	if(tablereg == null) {
 		log_error(logger, "Non existent table");
@@ -303,23 +355,7 @@ int insert(char * table_name, int key, char * value, unsigned long timestamp) {
 	return 0;
 }
 
-char * generate_tables_basedir() {
-	char * tables_basedir = malloc( strlen(config.mounting_point) + 22 );
-	strcpy(tables_basedir, config.mounting_point);
-	strcat(tables_basedir, "Tables/");
-	return tables_basedir;
-}
-
-char * generate_table_basedir(char * table_name) {
-	char * tables_base = generate_tables_basedir();
-	char * table_basedir = malloc(sizeof(char) * (strlen(tables_base) + 1 + strlen(table_name)));
-	strcpy(table_basedir, tables_base);
-	strcat(table_basedir, table_name);
-	strcat(table_basedir, "/");
-	return table_basedir;
-}
-
-int create(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time) {
+int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time) {
 	table_name = to_upper_string(table_name);
 	MemtableTableReg * tablereg = table_exists(table_name);
 	if(tablereg != null) {
@@ -336,9 +372,7 @@ int create(char * table_name, ConsistencyTypes consistency, int partitions, int 
 
 	char * table_basedir = generate_table_basedir(table_name);
 
-	char * metadatafilepath = malloc(sizeof(char) * (strlen(table_basedir) + 13));
-	strcpy(metadatafilepath, table_basedir);
-	strcat(metadatafilepath, "Metadata.bin");
+	char * metadatafilepath = generate_table_metadata_path(table_name);
 
 	FILE * metadatafile = fopen(metadatafilepath, "w");
 
@@ -350,9 +384,72 @@ int create(char * table_name, ConsistencyTypes consistency, int partitions, int 
 
 	tablereg = malloc(sizeof(MemtableTableReg));
 	tablereg->table_name = table_name;
+	tablereg->compaction_time = compaction_time;
+	tablereg->consistency = consistency;
+	tablereg->partitions = partitions;
 	tablereg->records = null;
 
 	list_add(memtable, tablereg);
 
 	log_info(logger, "Table created %s", table_name);
+}
+
+t_list * search_key_in_memtable(char * table_name, int key) {
+	t_list * results = list_create();
+
+	MemtableTableReg * table = table_exists(table_name);
+	if(table == null) {
+		return results;
+	}
+	if(table->records == null) {
+		return results;
+	}
+
+	void analyze(MemtableKeyReg * reg) {
+		if(reg->key == key) {
+			list_add(results, reg);
+		}
+	}
+	list_iterate(table->records, analyze);
+
+	return results;
+}
+
+t_list * search_key_in_partitions(char * table_name, int key) {
+	t_list * results = list_create();
+
+	return results;
+}
+
+t_list * search_key_in_temp_files(char * table_name, int key) {
+	t_list * results = list_create();
+
+	return results;
+}
+
+char * select_fs(char * table_name, int key) {
+	t_list * hits = list_create();
+	list_add_all(hits, search_key_in_memtable(table_name, key));
+	list_add_all(hits, search_key_in_partitions(table_name, key));
+	list_add_all(hits, search_key_in_temp_files(table_name, key));
+
+	if(hits->elements_count == 0) {
+		//no hay registros con esa key
+		return "UNK";
+	}
+
+	log_info(logger, "Partial results");
+	MemtableKeyReg * final_hit = list_get(hits, 0);
+	int a;
+	for(a=0 ; a<hits->elements_count ; a++) {
+		MemtableKeyReg * reg = list_get(hits, a);
+
+		//log_info(logger, "   %ul %d %s", reg->timestamp, reg->key, reg->value);
+
+		if(reg->timestamp > final_hit->timestamp) {
+			final_hit = reg;
+		}
+	}
+
+	return final_hit->value;
 }
