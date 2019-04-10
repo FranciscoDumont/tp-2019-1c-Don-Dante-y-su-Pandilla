@@ -16,6 +16,8 @@ char * get_file_contents(char * file_path);
 char * generate_tables_basedir();
 char * generate_table_basedir(char * table_name);
 
+t_list * search_key_in_partitions(char * table_name, int key);
+
 char * select_fs(char * table_name, int key);
 
 char * to_upper_string(char * sPtr);
@@ -40,8 +42,10 @@ int main(int argc, char **argv) {
 	up_filesystem();
 
 	//describe_fs("table4");
-	create_fs("mytable", STRONG_HASH_CONSISTENCY, 4, 6540);
-	drop_fs("mytable");
+	//create_fs("mytable", STRONG_HASH_CONSISTENCY, 4, 6540);
+	//drop_fs("mytable");
+
+	log_info(logger, "%s", select_fs("mytable", 4));
 
 	return EXIT_SUCCESS;
 }
@@ -377,7 +381,17 @@ MemtableTableReg * table_exists(char * table_name) {
 int get_key_partition(char * table_name, int key) {
 	MemtableTableReg * table = table_exists(table_name);
 	if(table == null) {
-		return -1;
+		char * metadatafilepath = generate_table_metadata_path(table_name);
+		FILE * t = fopen(metadatafilepath, "r");
+		if(t == null) {
+			return -1;
+		}
+		fclose(t);
+		t_config * config = config_create(metadatafilepath);
+		free(metadatafilepath);
+
+		int partitions = config_get_int_value(config, "PARTITIONS"), a;
+		return (key % partitions) + 1;
 	}
 	return (key % table->partitions) + 1;
 }
@@ -482,6 +496,41 @@ t_list * search_key_in_memtable(char * table_name, int key) {
 
 t_list * search_key_in_partitions(char * table_name, int key) {
 	t_list * results = list_create();
+	table_name = to_upper_string(table_name);
+
+	int partition = get_key_partition(table_name, key);
+
+	char * partition_file = malloc(sizeof(char) * (strlen(table_name) + 15));
+	char * tnum = malloc(sizeof(char) * 15);
+	strcpy(partition_file, "Tables/");
+	sprintf(tnum, "%s/%d.bin", table_name, partition);
+	strcat(partition_file, tnum);
+
+	char * partition_content = get_file_contents(partition_file);
+
+	char * token = strtok(partition_content, "\n");
+	while (token != NULL) {
+		int t_key;
+		char * value = malloc(config.value_size);
+
+		sscanf(token, "%d;%s", &t_key, value);
+
+		if(key == t_key) {
+			MemtableKeyReg * reg = malloc(sizeof(MemtableKeyReg));
+			reg->key = t_key;
+			reg->timestamp = 0ul;
+			reg->value = value;
+
+			list_add(results, reg);
+		} else {
+			free(value);
+		}
+
+		token = strtok(NULL, "\n");
+	}
+
+	free(tnum);
+	free(partition_file);
 
 	return results;
 }
@@ -503,7 +552,6 @@ char * select_fs(char * table_name, int key) {
 		return "UNK";
 	}
 
-	log_info(logger, "Partial results");
 	MemtableKeyReg * final_hit = list_get(hits, 0);
 	int a;
 	for(a=0 ; a<hits->elements_count ; a++) {
@@ -511,7 +559,7 @@ char * select_fs(char * table_name, int key) {
 
 		//log_info(logger, "   %ul %d %s", reg->timestamp, reg->key, reg->value);
 
-		if(reg->timestamp > final_hit->timestamp) {
+		if(reg->timestamp >= final_hit->timestamp) {
 			final_hit = reg;
 		}
 	}
