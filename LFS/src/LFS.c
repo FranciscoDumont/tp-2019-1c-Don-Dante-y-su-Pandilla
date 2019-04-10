@@ -39,11 +39,7 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	insert_fs("table1", 3, "seda", 779ul);
-	insert_fs("table1", 2, "chau", 498ul);
-	insert_fs("table1", 3, "hola", 156ul);
-
-	log_info(logger, "%s", select_fs("table1", 3));
+	describe_fs("table4");
 
 	return EXIT_SUCCESS;
 }
@@ -452,4 +448,71 @@ char * select_fs(char * table_name, int key) {
 	}
 
 	return final_hit->value;
+}
+
+void describe_fs(char * table_name) { //table_name puede ser nulo
+	if(table_name == null) {
+		DIR *d;
+		struct dirent *dir;
+		char * path = generate_tables_basedir();
+		d = opendir(path);
+		char full_path[1000];
+		if (d) {
+			while ((dir = readdir(d)) != NULL) {
+				if(dir->d_type == DT_DIR) {
+					if(dir->d_name[0] != '.') {
+						full_path[0] = '\0';
+						strcat(full_path, path);
+						strcat(full_path, dir->d_name);
+						strcat(full_path, "/Metadata.bin");
+
+						t_config * config = config_create(full_path);
+
+						MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
+						reg->records = null;
+						reg->table_name = malloc(sizeof(char) * strlen(dir->d_name));
+						strcpy(reg->table_name, dir->d_name);
+						reg->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
+						reg->partitions = config_get_int_value(config, "PARTITIONS");
+						reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
+
+						log_info(logger, "TABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s",
+								reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
+
+						free(config);
+						free(reg->table_name);
+						free(reg);
+					}
+				}
+			}
+			closedir(d);
+		}
+	} else {
+		table_name = to_upper_string(table_name);
+		char * metadatafilepath = generate_table_metadata_path(table_name);
+		FILE * t = fopen(metadatafilepath, "r");
+		if(t == null) {
+			log_info(logger, "Table doesnt exists");
+			return;
+		}
+		fclose(t);
+
+		t_config * config = config_create(metadatafilepath);
+
+		MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
+		reg->records = null;
+		reg->table_name = malloc(sizeof(char) * strlen(table_name));
+		strcpy(reg->table_name, table_name);
+		reg->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
+		reg->partitions = config_get_int_value(config, "PARTITIONS");
+		reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
+
+		log_info(logger, "TABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s",
+				reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
+
+		free(config);
+		free(reg->table_name);
+		free(reg);
+		free(metadatafilepath);
+	}
 }
