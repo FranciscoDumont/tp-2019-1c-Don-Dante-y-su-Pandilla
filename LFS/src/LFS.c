@@ -321,10 +321,9 @@ char * generate_table_basedir(char * table_name) {
 
 int create(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time) {
 	table_name = to_upper_string(table_name);
-	log_info(logger, "create %s", table_name);
 	MemtableTableReg * tablereg = table_exists(table_name);
 	if(tablereg != null) {
-		log_error(logger, "The table already exists");
+		log_error(logger, "The table already exists %s", table_name);
 		return -1;
 	}
 
@@ -355,5 +354,5 @@ int create(char * table_name, ConsistencyTypes consistency, int partitions, int 
 
 	list_add(memtable, tablereg);
 
-	log_info(logger, "created");
+	log_info(logger, "Table created %s", table_name);
 }
