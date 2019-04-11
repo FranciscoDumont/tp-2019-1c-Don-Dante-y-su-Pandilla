@@ -58,8 +58,6 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	search_key_in_partitions("mytable", 4);
-
 	return EXIT_SUCCESS;
 }
 
@@ -300,8 +298,6 @@ LFSFileStruct * save_file_contents(char * content, char * file_path) {
 }
 
 char * get_file_contents(char * file_path) {
-	log_info(logger, "AAA %s", file_path);
-
 	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + strlen(file_path) + 1));
 	strcpy(file_config_path, config.mounting_point);
 	strcat(file_config_path, file_path);
@@ -352,8 +348,6 @@ char * get_file_contents(char * file_path) {
 	free(blocks);
 
 	free(file_config_path);
-
-	log_info(logger, "   AAA LEIDO");
 
 	return file_content;
 }
@@ -609,8 +603,8 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 		char * temp_file_path	= malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
 		sprintf(temp_file_path, "Tables/%s/%d.tmp", table_name, (*file_number));
 
-		char * content	= get_file_contents(temp_file_path);
-		char * buffer	= malloc(sizeof(char) * strlen(content));
+		char * content			= get_file_contents(temp_file_path);
+		char * buffer			= malloc(sizeof(char) * strlen(content));
 
 		char * token;
 		for (token = strtok_r(content, "\n", &buffer) ;
@@ -624,27 +618,33 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 
 			if(key == t_key) {
 				MemtableKeyReg * reg = malloc(sizeof(MemtableKeyReg));
-				reg->key = t_key;
-				reg->timestamp = timestamp;
-				reg->value = value;
+				reg->key			 = t_key;
+				reg->timestamp 		 = timestamp;
+				reg->value			 = value;
 
 				list_add(results, reg);
 			} else {
 				free(value);
 			}
 		}
+
+		free(temp_file_path);
+		free(content);
 	}
 
 	for(file_counter=0 ; file_counter<table->temp_c->elements_count ; file_counter++) {
-		int * file_number = list_get(table->temp_c, file_counter);
+		int * file_number 		= list_get(table->temp_c, file_counter);
 
-		char * temp_file_path = malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
+		char * temp_file_path 	= malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
 		sprintf(temp_file_path, "Tables/%s/%d.tmpc", table_name, (*file_number));
 
-		char * content = get_file_contents(temp_file_path);
+		char * content			= get_file_contents(temp_file_path);
+		char * buffer			= malloc(sizeof(char) * strlen(content));
 
-		char * token = strtok(content, "\n");
-		while (token != NULL) {
+		char * token;
+		for (token = strtok_r(content, "\n", &buffer) ;
+					token != NULL ;
+					token = strtok_r(buffer, "\n", &buffer)) {
 			int t_key;
 			char * value = malloc(config.value_size);
 			unsigned long timestamp;
@@ -653,17 +653,18 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 
 			if(key == t_key) {
 				MemtableKeyReg * reg = malloc(sizeof(MemtableKeyReg));
-				reg->key = t_key;
-				reg->timestamp = timestamp;
-				reg->value = value;
+				reg->key			 = t_key;
+				reg->timestamp		 = timestamp;
+				reg->value			 = value;
 
 				list_add(results, reg);
 			} else {
 				free(value);
 			}
-
-			token = strtok(NULL, "\n");
 		}
+
+		free(temp_file_path);
+		free(content);
 	}
 
 	return results;
@@ -671,7 +672,7 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 
 char * select_fs(char * table_name, int key) {
 	t_list * hits = list_create();
-	list_add_all(hits, search_key_in_memtable(table_name, key));
+	list_add_all(hits, search_key_in_memtable  (table_name, key));
 	list_add_all(hits, search_key_in_partitions(table_name, key));
 	list_add_all(hits, search_key_in_temp_files(table_name, key));
 
@@ -681,9 +682,9 @@ char * select_fs(char * table_name, int key) {
 	}
 
 	MemtableKeyReg * final_hit = list_get(hits, 0);
-	int a;
-	for(a=0 ; a<hits->elements_count ; a++) {
-		MemtableKeyReg * reg = list_get(hits, a);
+	int reg_iterator;
+	for(reg_iterator=0 ; reg_iterator<hits->elements_count ; reg_iterator++) {
+		MemtableKeyReg * reg = list_get(hits, reg_iterator);
 
 		//log_info(logger, "   %ul %d %s", reg->timestamp, reg->key, reg->value);
 
@@ -702,107 +703,97 @@ void inform_table_metadata(MemtableTableReg * reg) {
 
 void describe_fs(char * table_name) { //table_name puede ser nulo
 	if(table_name == null) {
-		DIR *d;
-		struct dirent *dir;
-		char * path = generate_tables_basedir();
-		d = opendir(path);
+		DIR * tables_directory;
+		struct dirent * tables_dirent;
+		char * tables_basedir = generate_tables_basedir();
+		tables_directory = opendir(tables_basedir);
 		char full_path[1000];
-		if (d) {
-			while ((dir = readdir(d)) != NULL) {
-				if(dir->d_type == DT_DIR) {
-					if(dir->d_name[0] != '.') {
+		if (tables_directory) {
+			while ((tables_dirent = readdir(tables_directory)) != NULL) {
+				if(tables_dirent->d_type == DT_DIR) {
+					if(tables_dirent->d_name[0] != '.') {
 						full_path[0] = '\0';
-						strcat(full_path, path);
-						strcat(full_path, dir->d_name);
+						strcat(full_path, tables_basedir);
+						strcat(full_path, tables_dirent->d_name);
 						strcat(full_path, "/Metadata.bin");
 
 						t_config * config = config_create(full_path);
 
-						MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
-						reg->records = null;
-						reg->table_name = malloc(sizeof(char) * strlen(dir->d_name));
-						strcpy(reg->table_name, dir->d_name);
-						reg->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
-						reg->partitions = config_get_int_value(config, "PARTITIONS");
-						reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
+						MemtableTableReg * reg	= malloc(sizeof(MemtableTableReg));
+						reg->records			= null;
+						reg->table_name			= malloc(sizeof(char) * strlen(tables_dirent->d_name));
+						strcpy(reg->table_name, tables_dirent->d_name);
+						reg->compaction_time	= config_get_int_value(config, "COMPACTION_TIME");
+						reg->partitions			= config_get_int_value(config, "PARTITIONS");
+						reg->consistency		= char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
 						inform_table_metadata(reg);
-
-						free(config);
-						free(reg->table_name);
-						free(reg);
 					}
 				}
 			}
-			closedir(d);
+			closedir(tables_directory);
 		}
 	} else {
 		table_name = to_upper_string(table_name);
 		char * metadatafilepath = generate_table_metadata_path(table_name);
-		FILE * t = fopen(metadatafilepath, "r");
-		if(t == null) {
+		FILE * metadatafile_ptr = fopen(metadatafilepath, "r");
+		if(metadatafile_ptr == null) {
 			log_info(logger, "Table doesnt exists");
 			return;
 		}
-		fclose(t);
+		fclose(metadatafile_ptr);
 
 		t_config * config = config_create(metadatafilepath);
 
-		MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
-		reg->records = null;
-		reg->table_name = malloc(sizeof(char) * strlen(table_name));
+		MemtableTableReg * reg	= malloc(sizeof(MemtableTableReg));
+		reg->records			= null;
+		reg->table_name			= malloc(sizeof(char) * strlen(table_name));
 		strcpy(reg->table_name, table_name);
-		reg->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
-		reg->partitions = config_get_int_value(config, "PARTITIONS");
-		reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
+		reg->compaction_time	= config_get_int_value(config, "COMPACTION_TIME");
+		reg->partitions			= config_get_int_value(config, "PARTITIONS");
+		reg->consistency		= char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
 		inform_table_metadata(reg);
-
-		free(config);
-		free(reg->table_name);
-		free(reg);
-		free(metadatafilepath);
 	}
 }
 
 void drop_fs(char * table_name) {
 	table_name = to_upper_string(table_name);
-	int index = -1, a = 0;
+	int index_in_memtable = -1, aux_counter = 0;
 
 	void search(MemtableTableReg * table) {
 		if(strcmp(table->table_name, table_name) == 0) {
-			index = a;
+			index_in_memtable = aux_counter;
 		} else {
-			a++;
+			aux_counter++;
 		}
 	}
 	list_iterate(memtable, search);
 
-	if(index != -1) {
-		MemtableTableReg * reg = list_get(memtable, index);
-		list_remove(memtable, index);
+	if(index_in_memtable != -1) {
+		MemtableTableReg * reg = list_get(memtable, index_in_memtable);
+		list_remove(memtable, index_in_memtable);
 		free(reg);
 	}
-	char * metadatafilepath = generate_table_metadata_path(table_name);
-	FILE * t = fopen(metadatafilepath, "r");
-	if(t == null) {
+	char * metadatafilepath	= generate_table_metadata_path(table_name);
+	FILE * metadata_ptr		= fopen(metadatafilepath, "r");
+	if(metadata_ptr == null) {
 		return;
 	}
-	fclose(t);
+	fclose(metadata_ptr);
+
 	t_config * config = config_create(metadatafilepath);
 	free(metadatafilepath);
 
 	int partitions = config_get_int_value(config, "PARTITIONS");
-	for(a=1 ; a<=partitions ; a++) {
+	for(aux_counter=1 ; aux_counter<=partitions ; aux_counter++) {
 		char * thiscommand = malloc(sizeof(char) * (7 + strlen(table_name) + 5 + 3));
 		char * tnum = malloc(sizeof(char) * 3);
 		strcpy(thiscommand, "Tables/");
 		strcat(thiscommand, table_name);
-		sprintf(tnum, "/%d", a);
+		sprintf(tnum, "/%d", aux_counter);
 		strcat(thiscommand, tnum);
 		strcat(thiscommand, ".bin");
-
-		log_info(logger, "remove file %s", thiscommand);
 
 		remove_file(thiscommand);
 
@@ -820,29 +811,27 @@ void drop_fs(char * table_name) {
 }
 
 void dump_memtable() {
-	int a, b, c, d, counter;
+	int aux_iterator, records_iterator, multiplier_iterator, counter;
 
-	for(a=0 ; a<memtable->elements_count ; a++) {
-		MemtableTableReg * table = list_get(memtable, a);
-
-		int * dump_multiplier = malloc(sizeof(int));
-		int dump_found = 0;
-
-		(*dump_multiplier) = 0;
+	for(aux_iterator=0 ; aux_iterator<memtable->elements_count ; aux_iterator++) {
+		MemtableTableReg * table	= list_get(memtable, aux_iterator);
+		int * dump_multiplier		= malloc(sizeof(int));
+		int dump_found				= 0;
+		(*dump_multiplier)			= 0;
 
 		while(dump_found == 0) {
 			dump_found = 1;
 			(*dump_multiplier)++;
 
-			for(d=0 ; d<table->dumping_queue->elements_count ; d++) {
-				int * v = list_get(table->dumping_queue, d);
+			for(multiplier_iterator=0 ;
+					multiplier_iterator<table->dumping_queue->elements_count ;
+					multiplier_iterator++) {
+				int * v = list_get(table->dumping_queue, multiplier_iterator);
 				if((*dump_multiplier) == (*v)) {
 					dump_found = 0;
 				}
 			}
 		}
-
-		log_info(logger, "TABLE %s", table->table_name);
 
 		if(table->records == null){
 			table->records = list_create();
@@ -852,16 +841,18 @@ void dump_memtable() {
 		if(table->records->elements_count == 0) {
 			temp_content = malloc(sizeof(char));
 		} else {
-			temp_content = malloc( table->records->elements_count * (456) );
+			temp_content = malloc(table->records->elements_count * (3 + config.value_size + 10));
 		}
 		temp_content[0] = '\0';
 		counter = 0;
 
-		for(c=0 ; c<table->records->elements_count ; c++) {
-			MemtableKeyReg * reg = list_get(table->records, c);
+		for(records_iterator=0 ;
+				records_iterator<table->records->elements_count ;
+				records_iterator++) {
+			MemtableKeyReg * reg = list_get(table->records, records_iterator);
+			char * thisline		= malloc(3 + config.value_size + 10);
+			thisline[0]			= '\0';
 
-			char * thisline = malloc(config.value_size + sizeof(int) + (12 + 2) * sizeof(int));
-			thisline[0] = '\0';
 			if(counter != 0) {
 				strcat(temp_content, "\n");
 			}
@@ -871,7 +862,7 @@ void dump_memtable() {
 			counter++;
 		}
 
-		char * pfilepath = malloc(sizeof(char) * (12 + strlen(table->table_name) + 3));
+		char * pfilepath = malloc(sizeof(char) * (12 + strlen(table->table_name) + 3 + 1));
 		sprintf(pfilepath, "Tables/%s/%d.tmp", table->table_name, (*dump_multiplier));
 		save_file_contents(temp_content, pfilepath);
 
@@ -885,10 +876,12 @@ void dump_memtable() {
 void compact(char * table_name) {
 	table_name = to_upper_string(table_name);
 	MemtableTableReg * table = table_exists(table_name);
+	int tmp_iterator;
 
 	if(table == null) {
 		return;
 	}
+
 	if(table->dumping_queue->elements_count == 0) {
 		log_info(logger, "Table %s has no temp files to compact", table_name);
 		return;
@@ -898,9 +891,8 @@ void compact(char * table_name) {
 		table->temp_c = list_create();
 	}
 
-	int a, b;
-	for(a=0 ; a<table->dumping_queue->elements_count ; a++) {
-		int * dumping_multiplier = list_get(table->dumping_queue, a);
+	for(tmp_iterator=0 ; tmp_iterator<table->dumping_queue->elements_count ; tmp_iterator++) {
+		int * dumping_multiplier = list_get(table->dumping_queue, tmp_iterator);
 		list_add(table->temp_c, dumping_multiplier);
 
 		char * command = malloc(sizeof(char) * (13 + 2 * (strlen(generate_table_basedir(table_name)) + 3)));
@@ -913,126 +905,114 @@ void compact(char * table_name) {
 
 	list_clean(table->dumping_queue);
 
-	for(a=0 ; a<table->temp_c->elements_count ; a++) {
-		int * file_number = list_get(table->temp_c, a);
+	for(tmp_iterator=0 ; tmp_iterator<table->temp_c->elements_count ; tmp_iterator++) {
+		int * file_number		= list_get(table->temp_c, tmp_iterator);
 
-		char * temp_file_path = malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
+		char * temp_file_path	= malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
 		sprintf(temp_file_path, "Tables/%s/%d.tmpc", table_name, (*file_number));
 
-		char * file_content = get_file_contents(temp_file_path);
-		char * buffer_temp = malloc(strlen(file_content) * sizeof(char));
+		char * file_content		= get_file_contents(temp_file_path);
+		char * buffer_temp		= malloc(strlen(file_content) * sizeof(char));
 
-		char * token = strtok_r(file_content, "\n", &buffer_temp);
-		if(token != null) {
-			do {
-				int t_key;
-				char * value = malloc(config.value_size);
-				unsigned long timestamp;
+		char * token;
+		for (token = strtok_r(file_content, "\n", &buffer_temp) ;
+					token != NULL ;
+					token = strtok_r(buffer_temp, "\n", &buffer_temp)) {
+			int t_key;
+			char * value = malloc(config.value_size);
+			unsigned long timestamp;
 
-				sscanf(token, "%ul;%d;%s", &timestamp, &t_key, value);
+			sscanf(token, "%ul;%d;%s", &timestamp, &t_key, value);
 
-				MemtableKeyReg * reg = malloc(sizeof(MemtableKeyReg));
-				reg->key = t_key;
-				reg->timestamp = timestamp;
-				reg->value = value;
+			MemtableKeyReg * reg	= malloc(sizeof(MemtableKeyReg));
+			reg->key				= t_key;
+			reg->timestamp			= timestamp;
+			reg->value				= value;
 
-				t_list * existent_values = search_key_in_partitions(table_name, reg->key);
+			t_list * existent_values = search_key_in_partitions(table_name, reg->key);
 
-				log_info(logger, "compact %ul %d %s", timestamp, reg->key, value);
+			char * partition_file	= malloc(sizeof(char) * (strlen(table_name) + 15));
+			char * tnum				= malloc(sizeof(char) * 15);
+			strcpy(partition_file, "Tables/");
+			sprintf(tnum, "%s/%d.bin", table_name, get_key_partition(table_name, reg->key));
+			strcat(partition_file, tnum);
 
-				char * partition_file = malloc(sizeof(char) * (strlen(table_name) + 15));
-				char * tnum = malloc(sizeof(char) * 15);
-				strcpy(partition_file, "Tables/");
-				sprintf(tnum, "%s/%d.bin", table_name, get_key_partition(table_name, reg->key));
-				strcat(partition_file, tnum);
+			char * partition_content	= get_file_contents(partition_file);
+			char * buffer_partition		= malloc(sizeof(char) * strlen(partition_content));
 
-				log_info(logger, "   partition %s", tnum);
+			char * new_partition_content;
+			if(strlen(partition_content) == 0) {
+				new_partition_content = malloc(3 + config.value_size + 10);
+			} else {
+				new_partition_content = malloc(sizeof(char) *  2 * strlen(partition_content));
+			}
+			new_partition_content[0] = '\0';
 
-				char * partition_content = get_file_contents(partition_file);
-				char * buffer_ptr = malloc(sizeof(char) * strlen(partition_content));
-				char * new_partition_content;
-				if(strlen(partition_content) == 0) {
-					new_partition_content = malloc(sizeof(char) *  255);
-				} else {
-					new_partition_content = malloc(sizeof(char) *  2 * strlen(partition_content));
-				}
-				new_partition_content[0] = '\0';
-				int counter_partition = 0;
+			int counter_partition	 = 0;
 
-				log_info(logger, "      leyendo particion");
+			char * token_partition;
+			for (token_partition = strtok_r(partition_content, "\n", &buffer_partition) ;
+					token_partition != NULL ;
+					token_partition = strtok_r(buffer_partition, "\n", &buffer_partition)) {
+				int key_p;
+				char * value_p = malloc(config.value_size);
+				unsigned long timestamp_p;
+				char * this_line;
 
-				char * token_partition = strtok_r(partition_content, "\n", &buffer_ptr);
-				if(token_partition != null) {
-					do {
-						int key_p;
-						char * value_p = malloc(config.value_size);
-						unsigned long timestamp_p;
-						char * this_line;
+				sscanf(token_partition, "%ul;%d;%s", &timestamp_p, &key_p, value_p);
 
-						sscanf(token_partition, "%ul;%d;%s", &timestamp_p, &key_p, value_p);
+				MemtableKeyReg * reg_p	= malloc(sizeof(MemtableKeyReg));
+				reg_p->key				= key_p;
+				reg_p->timestamp		= timestamp_p;
+				reg_p->value			= value_p;
 
-						MemtableKeyReg * reg_p = malloc(sizeof(MemtableKeyReg));
-						reg_p->key = key_p;
-						reg_p->timestamp = timestamp_p;
-						reg_p->value = value_p;
-
-						log_info(logger, "         %ul %d %s", reg_p->timestamp, reg_p->key, reg_p->value);
-
-						if(reg->key == reg_p->key) {
-							if(reg->timestamp > reg_p->timestamp) {
-								if(counter_partition != 0) {
-									strcat(new_partition_content, "\n");
-								}
-								this_line = malloc(sizeof(char) * (22 + config.value_size));
-								sprintf(this_line, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
-								strcat(new_partition_content, this_line);
-								counter_partition++;
-							} else {
-								if(counter_partition != 0) {
-									strcat(new_partition_content, "\n");
-								}
-								this_line = malloc(sizeof(char) * (22 + config.value_size));
-								sprintf(this_line, "%ul;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
-								strcat(new_partition_content, this_line);
-								counter_partition++;
-							}
-						} else {
-							if(counter_partition != 0) {
-								strcat(new_partition_content, "\n");
-							}
-							this_line = malloc(sizeof(char) * (22 + config.value_size));
-							sprintf(this_line, "%ul;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
-							strcat(new_partition_content, this_line);
-							counter_partition++;
+				if(reg->key == reg_p->key) {
+					if(reg->timestamp > reg_p->timestamp) {
+						if(counter_partition != 0) {
+							strcat(new_partition_content, "\n");
 						}
-
-						log_info(logger, "           compone %s", this_line);
-
-						char * token_partition = strtok_r(partition_content, "\n", &buffer_ptr);
-					} while (token_partition != NULL && strcmp(buffer_ptr, "") != 0);
+						this_line = malloc(3 + config.value_size + 10);
+						sprintf(this_line, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+						strcat(new_partition_content, this_line);
+						counter_partition++;
+					} else {
+						if(counter_partition != 0) {
+							strcat(new_partition_content, "\n");
+						}
+						this_line = malloc(3 + config.value_size + 10);
+						sprintf(this_line, "%ul;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
+						strcat(new_partition_content, this_line);
+						counter_partition++;
+					}
 				} else {
-					//Empty partition file
-					char * this_line = malloc(sizeof(char) * (22 + config.value_size));
-					sprintf(this_line, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+					if(counter_partition != 0) {
+						strcat(new_partition_content, "\n");
+					}
+					this_line = malloc(3 + config.value_size + 10);
+					sprintf(this_line, "%ul;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
 					strcat(new_partition_content, this_line);
+					counter_partition++;
 				}
-				//TODO Save file
-				remove_file(partition_file);
+			}
 
-				save_file_contents(new_partition_content, partition_file);
+			if(counter_partition == 0) {
+				//Empty partition file
+				char * this_line = malloc(3 + config.value_size + 10);
+				sprintf(this_line, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+				strcat(new_partition_content, this_line);
+			}
 
-				free(tnum);
-				free(partition_file);
+			remove_file(partition_file);
 
-				token = strtok_r(file_content, "\n", &buffer_temp);
-			} while (token != NULL && strcmp(buffer_temp, "") != 0);
-		} else {
-			//Empty tempfile
+			save_file_contents(new_partition_content, partition_file);
+
+			free(tnum);
+			free(partition_file);
 		}
 	}
 
-	for(a=0 ; a<table->temp_c->elements_count ; a++) {
-		int * file_number = list_get(table->temp_c, a);
+	for(tmp_iterator=0 ; tmp_iterator<table->temp_c->elements_count ; tmp_iterator++) {
+		int * file_number = list_get(table->temp_c, tmp_iterator);
 
 		char * temp_file_path = malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
 		sprintf(temp_file_path, "Tables/%s/%d.tmpc", table_name, (*file_number));
@@ -1040,4 +1020,6 @@ void compact(char * table_name) {
 		remove_file(temp_file_path);
 	}
 	list_clean(table->temp_c);
+
+	log_info(logger, "Compacted table %s", table_name);
 }
