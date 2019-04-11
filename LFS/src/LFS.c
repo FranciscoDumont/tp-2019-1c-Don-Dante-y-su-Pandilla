@@ -7,21 +7,37 @@ LFSMetadata fsconfig;
 
 t_list * memtable;
 
-void up_filesystem();
-void free_block_list(int * blocks, int blocks_q);
-t_list * reserve_blocks(int blocks_q);
-LFSFileStruct * save_file_contents(char * content, char * file_path);
-char * get_file_contents(char * file_path);
+char * to_upper_string(char * string);
 
 char * generate_tables_basedir();
 char * generate_table_basedir(char * table_name);
+char * generate_table_metadata_path(char * table_name);
 
+void up_filesystem();
+
+void free_block_list(int * blocks, int blocks_q);
+t_list * reserve_blocks(int blocks_q);
+void save_bitmap_to_fs();
+void dump_bitmap();
+
+LFSFileStruct * save_file_contents(char * content, char * file_path);
+char * get_file_contents(char * file_path);
+void remove_file(char * file_path);
+
+MemtableTableReg * table_exists(char * table_name);
+int get_key_partition(char * table_name, int key);
+
+int insert_fs(char * table_name, int key, char * value, unsigned long timestamp);
+int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
+t_list * search_key_in_memtable(char * table_name, int key);
 t_list * search_key_in_partitions(char * table_name, int key);
 t_list * search_key_in_temp_files(char * table_name, int key);
-
 char * select_fs(char * table_name, int key);
-
-char * to_upper_string(char * sPtr);
+void inform_table_metadata(MemtableTableReg * reg);
+void describe_fs(char * table_name);
+void drop_fs(char * table_name);
+void dump_memtable();
+void compact(char * table_name);
 
 int main(int argc, char **argv) {
 	if (argc != 2) {
@@ -30,11 +46,11 @@ int main(int argc, char **argv) {
 		config_file = config_create(argv[1]);
 	}
 
-	config.port = config_get_int_value(config_file, "PUERTO_ESCUCHA");
-	config.mounting_point = config_get_string_value(config_file, "PUNTO_MONTAJE");
-	config.delay = config_get_int_value(config_file, "RETARDO");
-	config.value_size = config_get_int_value(config_file, "TAMAÑO_VALUE");
-	config.dump_delay = config_get_int_value(config_file, "TIEMPO_DUMP");
+	config.port				= config_get_int_value(config_file, "PUERTO_ESCUCHA");
+	config.mounting_point	= config_get_string_value(config_file, "PUNTO_MONTAJE");
+	config.delay			= config_get_int_value(config_file, "RETARDO");
+	config.value_size		= config_get_int_value(config_file, "TAMAÑO_VALUE");
+	config.dump_delay		= config_get_int_value(config_file, "TIEMPO_DUMP");
 
 	logger = log_create("filesystem_logger.log", "LFS", true, LOG_LEVEL_TRACE);
 
@@ -42,35 +58,23 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
-	//describe_fs("table4");
-	//create_fs("mytable", STRONG_HASH_CONSISTENCY, 4, 6540);
-	//drop_fs("mytable");
-
-	//log_info(logger, "%s", select_fs("mytable", 4));
-
-	//insert_fs("mytable", 4, "hola", 4568ul);
-	//insert_fs("mytable", 8, "chau", 9987ul);
-	//insert_fs("FUTBOL", 166, "unvalor", 119873ul);
-	//insert_fs("mytable", 4, "slu2", 9933ul);
-	//dump_memtable();
-
-	search_key_in_temp_files("mytable", 4);
+	search_key_in_partitions("mytable", 4);
 
 	return EXIT_SUCCESS;
 }
 
-char * to_upper_string(char * sPtr) {
+char * to_upper_string(char * string) {
 	int a;
-	char * temp = malloc(sizeof(char) * (strlen(sPtr) + 1));
-	for(a=0 ; a<strlen(sPtr) ; a++) {
-		temp[a] = toupper(sPtr[a]);
+	char * temp = malloc(sizeof(char) * (strlen(string) + 1));
+	for(a=0 ; a<strlen(string) ; a++) {
+		temp[a] = toupper(string[a]);
 	}
 	temp[a] = '\0';
 	return temp;
 }
 
 char * generate_tables_basedir() {
-	char * tables_basedir = malloc( strlen(config.mounting_point) + 22 );
+	char * tables_basedir = malloc( (strlen(config.mounting_point) + 8) * sizeof(char) );
 	strcpy(tables_basedir, config.mounting_point);
 	strcat(tables_basedir, "Tables/");
 	return tables_basedir;
@@ -78,8 +82,9 @@ char * generate_tables_basedir() {
 
 char * generate_table_basedir(char * table_name) {
 	table_name = to_upper_string(table_name);
+
 	char * tables_base = generate_tables_basedir();
-	char * table_basedir = malloc(sizeof(char) * (strlen(tables_base) + 1 + strlen(table_name)));
+	char * table_basedir = malloc(sizeof(char) * (strlen(tables_base) + 2 + strlen(table_name)));
 	strcpy(table_basedir, tables_base);
 	strcat(table_basedir, table_name);
 	strcat(table_basedir, "/");
@@ -99,134 +104,145 @@ void up_filesystem() {
 
 	strcpy(fsconfig.metadatapath, config.mounting_point);
 	strcat(fsconfig.metadatapath, "Metadata/Metadata.bin");
-	t_config * fs_config = config_create(fsconfig.metadatapath);
+	t_config * fs_config	= config_create(fsconfig.metadatapath);
 
-	fsconfig.block_size = config_get_int_value(fs_config, "BLOCK_SIZE");
-	fsconfig.blocks = config_get_int_value(fs_config, "BLOCKS");
-	fsconfig.magic_number = config_get_string_value(fs_config, "MAGIC_NUMBER");
+	fsconfig.block_size		= config_get_int_value(fs_config, "BLOCK_SIZE");
+	fsconfig.blocks			= config_get_int_value(fs_config, "BLOCKS");
+	fsconfig.magic_number	= config_get_string_value(fs_config, "MAGIC_NUMBER");
 
-	fsconfig.bitarraypath = malloc(sizeof(char) * (strlen(config.mounting_point) + 22));
+	fsconfig.bitarraypath	= malloc(sizeof(char) * (strlen(config.mounting_point) + 20));
 	strcpy(fsconfig.bitarraypath, config.mounting_point);
 	strcat(fsconfig.bitarraypath, "Metadata/Bitmap.bin");
 
-	char * ba = malloc(sizeof(char) * (fsconfig.blocks / 8));
-	FILE * b = fopen(fsconfig.bitarraypath, "r");
+	char * bitarray_ptr       = malloc(sizeof(char) * (fsconfig.blocks / 8));
+	FILE * bitarray_file_ptr  = fopen(fsconfig.bitarraypath, "r");
 
-	int a;
-	if(b == null) {
-		fsconfig.bitarray = bitarray_create_with_mode(ba, fsconfig.blocks / 8, MSB_FIRST);
+	if(bitarray_file_ptr == null) {
+		fsconfig.bitarray = bitarray_create_with_mode(bitarray_ptr, fsconfig.blocks / 8, MSB_FIRST);
 
-		for(a=0 ; a<fsconfig.blocks ; a++) {
-			bitarray_clean_bit(fsconfig.bitarray, a);
+		int block_counter;
+		for(block_counter=0 ; block_counter<fsconfig.blocks ; block_counter++) {
+			bitarray_clean_bit(fsconfig.bitarray, block_counter);
 		}
 
-		b = fopen(fsconfig.bitarraypath, "w");
-		fwrite(fsconfig.bitarray->bitarray, 1, fsconfig.blocks / 8, b);
-		fclose(b);
+		bitarray_file_ptr = fopen(fsconfig.bitarraypath, "w");
+		fwrite(fsconfig.bitarray->bitarray, 1, fsconfig.blocks / 8, bitarray_file_ptr);
+		fclose(bitarray_file_ptr);
 
-		free(ba);
-		ba = malloc(sizeof(char) * (fsconfig.blocks / 8));
+		bitarray_ptr = malloc(sizeof(char) * (fsconfig.blocks / 8));
 	}
-	b = fopen(fsconfig.bitarraypath, "r");
+	bitarray_file_ptr = fopen(fsconfig.bitarraypath, "r");
 
-	fread(ba, 1, fsconfig.blocks / 8, b);
-	fclose(b);
+	fread(bitarray_ptr, 1, fsconfig.blocks / 8, bitarray_file_ptr);
+	fclose(bitarray_file_ptr);
 
-	fsconfig.bitarray = bitarray_create_with_mode(ba, fsconfig.blocks / 8, MSB_FIRST);
+	fsconfig.bitarray = bitarray_create_with_mode(bitarray_ptr, fsconfig.blocks / 8, MSB_FIRST);
 
-	DIR *d;
-	struct dirent *dir;
-	char * path = generate_tables_basedir();
-	d = opendir(path);
-	char full_path[1000];
-	if (d) {
-		while ((dir = readdir(d)) != NULL) {
-			if(dir->d_type == DT_DIR) {
-				if(dir->d_name[0] != '.') {
-					full_path[0] = '\0';
-					strcat(full_path, path);
-					strcat(full_path, dir->d_name);
-					strcat(full_path, "/Metadata.bin");
+	DIR * tables_directory;
+	struct dirent * tables_dirent;
+	char * tables_basedir = generate_tables_basedir();
+	tables_directory = opendir(tables_basedir);
+	char full_folder_path[1024];
+	if (tables_directory) {
+		while ((tables_dirent = readdir(tables_directory)) != NULL) {
+			if(tables_dirent->d_type == DT_DIR) {
+				if(tables_dirent->d_name[0] != '.') {
+					full_folder_path[0] = '\0';
 
-					t_config * config = config_create(full_path);
+					strcat(full_folder_path, tables_basedir);
+					strcat(full_folder_path, tables_dirent->d_name);
+					strcat(full_folder_path, "/Metadata.bin");
+
+					t_config * config = config_create(full_folder_path);
 
 					MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
-					reg->records = null;
-					reg->table_name = malloc(sizeof(char) * strlen(dir->d_name));
-					strcpy(reg->table_name, dir->d_name);
-					reg->compaction_time = config_get_int_value(config, "COMPACTION_TIME");
-					reg->partitions = config_get_int_value(config, "PARTITIONS");
-					reg->consistency = char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
-					reg->dumping_queue = list_create();
-					reg->temp_c = list_create();
+					reg->records			= null;
+					reg->table_name			= malloc(sizeof(char) * strlen(tables_dirent->d_name));
+					strcpy(reg->table_name, tables_dirent->d_name);
 
-					free(config);
+					reg->compaction_time	= config_get_int_value(config, "COMPACTION_TIME");
+					reg->partitions			= config_get_int_value(config, "PARTITIONS");
+					reg->consistency		= char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
+					reg->dumping_queue		= list_create();
+					reg->temp_c				= list_create();
 
 					inform_table_metadata(reg);
 					list_add(memtable, reg);
+
+					config_destroy(config);
 				}
 			}
 		}
-		closedir(d);
+		closedir(tables_directory);
 	}
+	free(tables_dirent);
+
+	log_info(logger, "Filesystem Up");
 }
 
 void free_block_list(int * blocks, int blocks_q) {
-	int a;
-	for(a=0 ; a<blocks_q ; a++) {
-		bitarray_clean_bit(fsconfig.bitarray, blocks[a]);
+	int counter;
+	for(counter=0 ; counter<blocks_q ; counter++) {
+		bitarray_clean_bit(fsconfig.bitarray, blocks[counter]);
 	}
 }
 
 t_list * reserve_blocks(int blocks_q) {
 	int availables = 0;
-	int a, b;
-	for(a=0 ; a<fsconfig.bitarray->size * 8 ; a++) {
-		if(bitarray_test_bit(fsconfig.bitarray, a) == 0) {
+	int counter_1, counter_2;
+	for(counter_1=0 ; counter_1<fsconfig.bitarray->size * 8 ; counter_1++) {
+		if(bitarray_test_bit(fsconfig.bitarray, counter_1) == 0) {
 			availables++;
-			if(availables == blocks_q) a = fsconfig.bitarray->size * 8;
+			if(availables == blocks_q) counter_1 = fsconfig.bitarray->size * 8;
 		}
 	}
+
 	if(availables < blocks_q) {
 		return null;
 	}
+
 	t_list * blocks_numbers = list_create();
-	b = 0;
-	for(a=0 ; a<blocks_q ; a++) {
-		while(bitarray_test_bit(fsconfig.bitarray, b) == 1) {
-			b++;
+	counter_2 = 0;
+
+	for(counter_1=0 ; counter_1<blocks_q ; counter_1++) {
+		while(bitarray_test_bit(fsconfig.bitarray, counter_2) == 1) {
+			counter_2++;
 		}
-		list_add(blocks_numbers, b);
-		bitarray_set_bit(fsconfig.bitarray, b);
+		int * this_block_index = malloc(sizeof(int));
+		(*this_block_index) = counter_2;
+		list_add(blocks_numbers, this_block_index);
+		bitarray_set_bit(fsconfig.bitarray, counter_2);
 	}
+
 	return blocks_numbers;
 }
 
 void save_bitmap_to_fs() {
-	FILE * b = fopen(fsconfig.bitarraypath, "w");
-	fwrite(fsconfig.bitarray->bitarray, 1, fsconfig.blocks / 8, b);
-	fclose(b);
+	FILE * bitarray_ptr = fopen(fsconfig.bitarraypath, "w");
+	fwrite(fsconfig.bitarray->bitarray, 1, fsconfig.blocks / 8, bitarray_ptr);
+	fclose(bitarray_ptr);
 }
 
 void dump_bitmap() {
-	int a;
-	for(a=0 ; a<fsconfig.blocks ; a++) {
-		log_info(logger, "   %d %d", a, bitarray_test_bit(fsconfig.bitarray, a));
+	int counter;
+	for(counter=0 ; counter<fsconfig.blocks ; counter++) {
+		log_info(logger, "   %d %d", counter, bitarray_test_bit(fsconfig.bitarray, counter));
 	}
 }
 
 LFSFileStruct * save_file_contents(char * content, char * file_path) {
-	LFSFileStruct file_struct;
+	LFSFileStruct * file_struct = malloc(sizeof(LFSFileStruct));
 
-	float content_size = strlen(content) + 0.0;
-	float blocks_q_f = content_size / fsconfig.block_size;
-	int blocks_q = content_size / fsconfig.block_size, a;
-	float r = blocks_q_f - blocks_q;
-	if(r != 0.0) {
+	float content_size	= strlen(content) + 0.0;
+	float blocks_q_f	= content_size / fsconfig.block_size;
+	int blocks_q		= content_size / fsconfig.block_size, block_counter;
+	float remaining		= blocks_q_f - blocks_q;
+
+	if(remaining != 0.0) {
 		blocks_q++;
 	}
 
-	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 22));
+	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + strlen(file_path) + 1));
 	strcpy(file_config_path, config.mounting_point);
 	strcat(file_config_path, file_path);
 
@@ -236,23 +252,23 @@ LFSFileStruct * save_file_contents(char * content, char * file_path) {
 		return null;
 	}
 
-	for(a=0 ; a<blocks->elements_count ; a++) {
-
-		char * this_file_stream = malloc(fsconfig.block_size + 1);
-		memcpy(this_file_stream, (content + (a*fsconfig.block_size)), fsconfig.block_size);
+	for(block_counter=0 ; block_counter<blocks->elements_count ; block_counter++) {
+		char * this_file_stream = malloc(fsconfig.block_size + sizeof(char));
+		memcpy(this_file_stream, (content + (block_counter*fsconfig.block_size)), fsconfig.block_size);
 		this_file_stream[fsconfig.block_size] = '\0';
 
-		char blockn[10];
-		sprintf(blockn, "%d.bin", list_get(blocks, a));
+		char block_number_str[10];
+		int * block_number_int = list_get(blocks, block_counter);
+		sprintf(block_number_str, "%d.bin", (*block_number_int));
 
-		char * this_block_path = malloc( strlen(config.mounting_point) + 22 );
+		char * this_block_path = malloc( strlen(config.mounting_point) + 8 + 1 + strlen(block_number_str) );
 		strcpy(this_block_path, config.mounting_point);
 		strcat(this_block_path, "Bloques/");
-		strcat(this_block_path, blockn);
+		strcat(this_block_path, block_number_str);
 
-		FILE * tf = fopen(this_block_path, "w");
-		fwrite(this_file_stream, fsconfig.block_size, 1, tf);
-		fclose(tf);
+		FILE * this_block_ptr = fopen(this_block_path, "w");
+		fwrite(this_file_stream, fsconfig.block_size, 1, this_block_ptr);
+		fclose(this_block_ptr);
 
 		free(this_block_path);
 		free(this_file_stream);
@@ -260,63 +276,67 @@ LFSFileStruct * save_file_contents(char * content, char * file_path) {
 
 	save_bitmap_to_fs();
 
-	file_struct.blocks = blocks;
-	file_struct.size = blocks->elements_count * fsconfig.block_size;
+	file_struct->blocks	= blocks;
+	file_struct->size	= blocks->elements_count * fsconfig.block_size;
 
-	FILE * strfile = fopen(file_config_path, "w");
-	fprintf(strfile, "SIZE=%d\n", file_struct.size);
-	fprintf(strfile, "BLOCKS=[", file_struct.size);
-	for(a=0 ; a<blocks->elements_count-1 ; a++) {
-		fprintf(strfile, "%d,", list_get(blocks, a));
+	FILE * file_ptr = fopen(file_config_path, "w");
+
+	fprintf(file_ptr, "SIZE=%d\n", file_struct->size);
+	fprintf(file_ptr, "BLOCKS=[");
+	for(block_counter=0 ; block_counter<blocks->elements_count-1 ; block_counter++) {
+		int * block_number_int = list_get(blocks, block_counter);
+		fprintf(file_ptr, "%d,", (*block_number_int));
 	}
 	if(blocks_q != 0) {
-		fprintf(strfile, "%d]", list_get(blocks, a));
+		int * block_number_int = list_get(blocks, block_counter);
+		fprintf(file_ptr, "%d]", (*block_number_int));
 	} else {
-		fprintf(strfile, "]");
+		fprintf(file_ptr, "]");
 	}
-	fclose(strfile);
-
+	fclose(file_ptr);
 	free(file_config_path);
 
-	return &file_struct;
+	return file_struct;
 }
 
 char * get_file_contents(char * file_path) {
-	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 22));
+	log_info(logger, "AAA %s", file_path);
+
+	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + strlen(file_path) + 1));
 	strcpy(file_config_path, config.mounting_point);
 	strcat(file_config_path, file_path);
 
-	FILE * auxfile = fopen(file_config_path, "r");
-	if(auxfile == null) {
+	FILE * aux_file = fopen(file_config_path, "r");
+	if(aux_file == null) {
 		log_error(logger, "File not found in filesystem");
 		return null;
 	}
-	fclose(auxfile);
+	fclose(aux_file);
 
-	t_config * file_data = config_create(file_config_path);
-	char ** blocks = config_get_array_value(file_data, "BLOCKS");
-	char * blocks_str = config_get_string_value(file_data, "BLOCKS");
-	int blocks_q = 0, a;
+	t_config * file_data	= config_create(file_config_path);
+	char ** blocks			= config_get_array_value(file_data, "BLOCKS");
+	char * blocks_str		= config_get_string_value(file_data, "BLOCKS");
+	int blocks_q = 0, counter;
 
 	if(strcmp("[]", blocks_str) != 0) {
 		blocks_q++;
-		for(a = 0 ; a < strlen(blocks_str) ; a++) {
-			if(blocks_str[a] == ',') blocks_q++;
+		for(counter = 0 ; counter < strlen(blocks_str) ; counter++) {
+			if(blocks_str[counter] == ',') blocks_q++;
 		}
 	}
 	free(blocks_str);
 
-	char * file_content = malloc(config_get_int_value(file_data, "SIZE"));
-	file_content[0] = '\0';
+	char * file_content		= malloc(config_get_int_value(file_data, "SIZE"));
+	file_content[0]			= '\0';
 
-	for(a=0 ; a<blocks_q ; a++) {
-		char * this_block_path = malloc( strlen(config.mounting_point) + 22 );
+	for(counter=0 ; counter<blocks_q ; counter++) {
+		char * this_block_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 13 + strlen(blocks[counter])));
 		strcpy(this_block_path, config.mounting_point);
 		strcat(this_block_path, "Bloques/");
-		strcat(this_block_path, blocks[a]);
+		strcat(this_block_path, blocks[counter]);
 		strcat(this_block_path, ".bin");
 
-		char * this_block_content = malloc(config.value_size + 1);
+		char * this_block_content = malloc(config.value_size + sizeof(char));
 
 		FILE * block = fopen(this_block_path, "r");
 		fread(this_block_content, config.value_size, 1, block);
@@ -325,17 +345,21 @@ char * get_file_contents(char * file_path) {
 		strcat(file_content, this_block_content);
 
 		fclose(block);
-
 		free(this_block_path);
+		free(this_block_content);
+		free(blocks[counter]);
 	}
+	free(blocks);
 
 	free(file_config_path);
+
+	log_info(logger, "   AAA LEIDO");
 
 	return file_content;
 }
 
 void remove_file(char * file_path) {
-	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 22));
+	char * file_config_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 1 + strlen(file_path)));
 	strcpy(file_config_path, config.mounting_point);
 	strcat(file_config_path, file_path);
 
@@ -346,41 +370,45 @@ void remove_file(char * file_path) {
 	}
 	fclose(auxfile);
 
-	t_config * file_data = config_create(file_config_path);
-	char ** blocks = config_get_array_value(file_data, "BLOCKS");
-	char * blocks_str = config_get_string_value(file_data, "BLOCKS");
-	int blocks_q = 0, a;
+	t_config * file_data	= config_create(file_config_path);
+	char ** blocks			= config_get_array_value(file_data, "BLOCKS");
+	char * blocks_str		= config_get_string_value(file_data, "BLOCKS");
+	int blocks_q = 0, block_counter;
 
 	if(strcmp("[]", blocks_str) != 0) {
 		blocks_q++;
-		for(a = 0 ; a < strlen(blocks_str) ; a++) {
-			if(blocks_str[a] == ',') blocks_q++;
+		for(block_counter = 0 ; block_counter < strlen(blocks_str) ; block_counter++) {
+			if(blocks_str[block_counter] == ',') blocks_q++;
 		}
 	}
 	free(blocks_str);
 
-	char * file_content = malloc(config_get_int_value(file_data, "SIZE"));
-	file_content[0] = '\0';
+	char * file_content		= malloc(config_get_int_value(file_data, "SIZE"));
+	file_content[0]			= '\0';
 
-	for(a=0 ; a<blocks_q ; a++) {
-		char * this_block_path = malloc( strlen(config.mounting_point) + 22 );
+	for(block_counter=0 ; block_counter<blocks_q ; block_counter++) {
+		char * this_block_path = malloc(sizeof(char) * (strlen(config.mounting_point) + 13 + strlen(blocks[block_counter])));
 		strcpy(this_block_path, config.mounting_point);
 		strcat(this_block_path, "Bloques/");
-		strcat(this_block_path, blocks[a]);
+		strcat(this_block_path, blocks[block_counter]);
 		strcat(this_block_path, ".bin");
 
-		bitarray_clean_bit(fsconfig.bitarray, atoi(blocks[a]));
+		bitarray_clean_bit(fsconfig.bitarray, atoi(blocks[block_counter]));
 
 		free(this_block_path);
+		free(blocks[block_counter]);
 	}
+	free(blocks);
 
-	char * remove_command = malloc(sizeof(char) * (strlen(file_config_path) + 3));
+	char * remove_command = malloc(sizeof(char) * (strlen(file_config_path) + 4));
 	strcpy(remove_command, "rm ");
 	strcat(remove_command, file_config_path);
 
 	system(remove_command);
 
 	free(remove_command);
+	free(file_config_path);
+	free(file_data);
 
 	save_bitmap_to_fs();
 }
@@ -397,65 +425,67 @@ MemtableTableReg * table_exists(char * table_name) {
 
 int get_key_partition(char * table_name, int key) {
 	MemtableTableReg * table = table_exists(table_name);
+	int this_table_partitions;
 	if(table == null) {
 		char * metadatafilepath = generate_table_metadata_path(table_name);
-		FILE * t = fopen(metadatafilepath, "r");
-		if(t == null) {
+		FILE * metadata_ptr = fopen(metadatafilepath, "r");
+		if(metadata_ptr == null) {
 			return -1;
 		}
-		fclose(t);
+		fclose(metadata_ptr);
+
 		t_config * config = config_create(metadatafilepath);
 		free(metadatafilepath);
 
-		int partitions = config_get_int_value(config, "PARTITIONS"), a;
-		return (key % partitions) + 1;
+		int partitions = config_get_int_value(config, "PARTITIONS");
+		free(config);
+		this_table_partitions = partitions;
+	} else {
+		this_table_partitions = table->partitions;
 	}
-	return (key % table->partitions) + 1;
+	return (key % this_table_partitions) + 1;
 }
 
 int insert_fs(char * table_name, int key, char * value, unsigned long timestamp) {
 	MemtableTableReg * tablereg = table_exists(table_name);
 	if(tablereg == null) {
 		log_error(logger, "Non existent table");
-		return -1;
+		return false;
 	}
 
 	if(tablereg->records == null) {
 		tablereg->records = list_create();
 	}
-	MemtableKeyReg * registry = malloc(sizeof(MemtableKeyReg));
-	registry->key = key;
-	registry->timestamp = timestamp;
 
-	registry->value = malloc(config.value_size);
+	MemtableKeyReg * registry	= malloc(sizeof(MemtableKeyReg));
+	registry->key				= key;
+	registry->timestamp			= timestamp;
+	registry->value				= malloc(config.value_size);
 	strcpy(registry->value, value);
 
 	list_add(tablereg->records, registry);
 
-	return 0;
+	return true;
 }
 
 int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time) {
-	table_name = to_upper_string(table_name);
-	MemtableTableReg * tablereg = table_exists(table_name);
-	if(tablereg != null) {
-		log_error(logger, "The table already exists %s", table_name);
-		return -1;
+	MemtableTableReg * table_reg = table_exists(table_name);
+	if(table_reg != null) {
+		log_error(logger, "The table already exists %s", table_reg->table_name);
+		return false;
 	}
+	table_name = to_upper_string(table_name);
 
-	log_info(logger, "Table %s creation", table_name);
-
-	char * tables_basedir = generate_tables_basedir();
-	char * commandbuffer = malloc(sizeof(char) * (6 + strlen(tables_basedir) + strlen(table_name)));
+	char * tables_basedir	= generate_tables_basedir();
+	char * commandbuffer	= malloc(sizeof(char) * (7 + strlen(tables_basedir) + strlen(table_name)));
 	sprintf(commandbuffer, "mkdir %s%s", tables_basedir, table_name);
 
 	system(commandbuffer);
-	free(commandbuffer);
 
-	char * table_basedir = generate_table_basedir(table_name);
+	free(commandbuffer);
+	free(tables_basedir);
 
 	char * metadatafilepath = generate_table_metadata_path(table_name);
-
 	FILE * metadatafile = fopen(metadatafilepath, "w");
 
 	fprintf(metadatafile, "CONSISTENCY=%s\nPARTITIONS=%d\nCOMPACTION_TIME=%d",
@@ -464,39 +494,41 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 	fclose(metadatafile);
 	free(metadatafilepath);
 
-	int a;
-	for(a=1 ; a<=partitions ; a++) {
-		char * thispath = malloc(sizeof(char) * (strlen(generate_table_basedir(table_name)) + 3 + 4));
-		char * tnum = malloc(sizeof(char) * 3);
+	int partition_counter;
+	for(partition_counter=1 ; partition_counter<=partitions ; partition_counter++) {
+		char * partition_number_str = malloc(sizeof(char) * 3);
+		sprintf(partition_number_str, "%d", partition_counter);
+
+		char * thispath = malloc(sizeof(char) * (strlen(generate_table_basedir(table_name)) + strlen(partition_number_str) + 4));
 		strcpy(thispath, generate_table_basedir(table_name));
-		sprintf(tnum, "%d", a);
-		strcat(thispath, tnum);
+		strcat(thispath, partition_number_str);
 		strcat(thispath, ".bin");
 
 		FILE * partition = fopen(thispath, "w");
 		fprintf(partition, "SIZE=0\nBLOCKS=[]");
 		fclose(partition);
-		free(thispath);
-		free(tnum);
+
+		free(partition_number_str);
 	}
 
-	tablereg = malloc(sizeof(MemtableTableReg));
-	tablereg->table_name = table_name;
-	tablereg->compaction_time = compaction_time;
-	tablereg->consistency = consistency;
-	tablereg->partitions = partitions;
-	tablereg->records = null;
-	tablereg->dumping_queue = list_create();
-	tablereg->temp_c = list_create();
+	table_reg					= malloc(sizeof(MemtableTableReg));
+	table_reg->table_name		= table_name;
+	table_reg->compaction_time	= compaction_time;
+	table_reg->consistency		= consistency;
+	table_reg->partitions		= partitions;
+	table_reg->records			= null;
+	table_reg->dumping_queue	= list_create();
+	table_reg->temp_c			= list_create();
 
-	list_add(memtable, tablereg);
+	list_add(memtable, table_reg);
 
 	log_info(logger, "Table created %s", table_name);
+
+	return true;
 }
 
 t_list * search_key_in_memtable(char * table_name, int key) {
-	t_list * results = list_create();
-
+	t_list * results		 = list_create();
 	MemtableTableReg * table = table_exists(table_name);
 	if(table == null) {
 		return results;
@@ -516,68 +548,74 @@ t_list * search_key_in_memtable(char * table_name, int key) {
 }
 
 t_list * search_key_in_partitions(char * table_name, int key) {
-	t_list * results = list_create();
-	table_name = to_upper_string(table_name);
+	t_list * results	= list_create();
+	table_name			= to_upper_string(table_name);
 
-	int partition = get_key_partition(table_name, key);
+	int partition		= get_key_partition(table_name, key);
 
-	char * partition_file = malloc(sizeof(char) * (strlen(table_name) + 15));
-	char * tnum = malloc(sizeof(char) * 15);
+	char * partition_file		= malloc(sizeof(char) * (strlen(table_name) + 15));
 	strcpy(partition_file, "Tables/");
-	sprintf(tnum, "%s/%d.bin", table_name, partition);
-	strcat(partition_file, tnum);
+	char * partition_number_str	= malloc(sizeof(char) * 15);
+	sprintf(partition_number_str, "%s/%d.bin", table_name, partition);
+	strcat(partition_file, partition_number_str);
 
 	char * partition_content = get_file_contents(partition_file);
+	char * partition_buffer  = malloc(sizeof(char) * strlen(partition_content));
+	partition_buffer[0] = '\0';
 
-	char * token = strtok(partition_content, "\n");
-	while (token != NULL) {
-		int t_key;
-		char * value = malloc(config.value_size);
+	char * token;
+	for (token = strtok_r(partition_content, "\n", &partition_buffer) ;
+			token != NULL ;
+			token = strtok_r(partition_buffer, "\n", &partition_buffer)) {
+		int		t_key;
+		char *	value = malloc(config.value_size);
 		unsigned long timestamp;
 
 		sscanf(token, "%ul;%d;%s", &timestamp, &t_key, value);
 
 		if(key == t_key) {
-			MemtableKeyReg * reg = malloc(sizeof(MemtableKeyReg));
-			reg->key = t_key;
-			reg->timestamp = timestamp;
-			reg->value = value;
+			MemtableKeyReg * reg	= malloc(sizeof(MemtableKeyReg));
+			reg->key				= t_key;
+			reg->timestamp			= timestamp;
+			reg->value				= value;
 
 			list_add(results, reg);
 		} else {
 			free(value);
 		}
-
-		token = strtok(NULL, "\n");
 	}
 
-	free(tnum);
+	free(partition_number_str);
 	free(partition_file);
+	free(partition_content);
 
 	return results;
 }
 
 t_list * search_key_in_temp_files(char * table_name, int key) {
 	t_list * results = list_create();
-	int a, b;
+	int file_counter;
 
-	table_name = to_upper_string(table_name);
-	MemtableTableReg * table = table_exists(table_name);
+	table_name					= to_upper_string(table_name);
+	MemtableTableReg * table	= table_exists(table_name);
 
 	if(table == null) {
 		return results;
 	}
 
-	for(a=0 ; a<table->dumping_queue->elements_count ; a++) {
-		int * file_number = list_get(table->dumping_queue, a);
+	for(file_counter=0 ; file_counter<table->dumping_queue->elements_count ; file_counter++) {
+		int * file_number		= list_get(table->dumping_queue, file_counter);
 
-		char * temp_file_path = malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
+		char * temp_file_path	= malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
 		sprintf(temp_file_path, "Tables/%s/%d.tmp", table_name, (*file_number));
 
-		char * content = get_file_contents(temp_file_path);
+		char * content	= get_file_contents(temp_file_path);
+		char * buffer	= malloc(sizeof(char) * strlen(content));
 
-		char * token = strtok(content, "\n");
-		while (token != NULL) {
+		char * token;
+		for (token = strtok_r(content, "\n", &buffer) ;
+					token != NULL ;
+					token = strtok_r(buffer, "\n", &buffer)) {
 			int t_key;
 			char * value = malloc(config.value_size);
 			unsigned long timestamp;
@@ -594,13 +632,11 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 			} else {
 				free(value);
 			}
-
-			token = strtok(NULL, "\n");
 		}
 	}
 
-	for(a=0 ; a<table->temp_c->elements_count ; a++) {
-		int * file_number = list_get(table->temp_c, a);
+	for(file_counter=0 ; file_counter<table->temp_c->elements_count ; file_counter++) {
+		int * file_number = list_get(table->temp_c, file_counter);
 
 		char * temp_file_path = malloc(sizeof(char) * (13 + 3 + strlen(table_name)));
 		sprintf(temp_file_path, "Tables/%s/%d.tmpc", table_name, (*file_number));
