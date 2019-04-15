@@ -1,4 +1,5 @@
 #include <dalibrary/libmain.h>
+#include "./include/headers.h"
 
 t_log * logger;
 t_config * config_file = null;
@@ -57,6 +58,11 @@ int main(int argc, char **argv) {
 	memtable = list_create();
 
 	up_filesystem();
+
+	//Consola
+
+	pthread_t planner_console_id;
+	pthread_create(&planner_console_id, NULL, lfs_console_launcher, NULL);
 
 	return EXIT_SUCCESS;
 }
