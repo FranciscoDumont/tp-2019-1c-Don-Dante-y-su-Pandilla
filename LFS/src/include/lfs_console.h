@@ -3,14 +3,15 @@
 
 #include "commands.h"
 
-typedef enum{
-	EXIT=0, SELECT, INSERT, CREATE, DESCRIBE, DROP, INFO
-} commands;
+// comando_t tiene un string comando y una lista de hasta 5 strings que son parametros
+typedef struct {
+	char comando[20];
+	char parametro[5][20];
+} comando_t;
 
 void * lfs_console_launcher();
-int parse(char **, char **, char **);
-void execute(int, char*, char*);
-int find_in_array(char*, const char**, int);
+void execute(comando_t*);
 void string_tolower(char*);
+void cargar_comando(comando_t*, char*);
 
 #endif

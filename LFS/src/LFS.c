@@ -61,8 +61,10 @@ int main(int argc, char **argv) {
 
 	//Consola
 
-	pthread_t planner_console_id;
-	pthread_create(&planner_console_id, NULL, lfs_console_launcher, NULL);
+	pthread_t lfs_console_id;
+	pthread_create(&lfs_console_id, NULL, lfs_console_launcher, NULL);
+
+	pthread_join(lfs_console_id,NULL);
 
 	return EXIT_SUCCESS;
 }

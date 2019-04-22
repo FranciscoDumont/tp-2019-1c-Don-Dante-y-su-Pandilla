@@ -6,85 +6,96 @@
 #include <readline/history.h>
 #include "lfs_console.h"
 
+
 void * lfs_console_launcher() {
-	char *linea, *param1, *param2;
-	int command_number, quit = 0;
-	const char* command_list[] = {"select", "insert", "create",
-			"describe", "drop", "info"};
-	int command_list_length = (int) sizeof(command_list) /
-			sizeof(command_list[0]);
+
+	comando_t comando;
+
+	char *linea;
+	int quit = 0;
 
 	printf("Bienvenido/a a la consola del Lisandra File System\n");
 	printf("Escribi 'info' para obtener una lista de comandos\n");
 
 	while(quit == 0){
+
 		linea = readline("> ");
-		add_history(linea);
 		string_tolower(linea);
-		if(parse(&linea, &param1, &param2)) printf("Demasiados parámetros!\n");
+		add_history(linea);
+		cargar_comando(&comando,linea);
 
-		else {
-			command_number = find_in_array(linea,
-						command_list, command_list_length);
-
-			command_number == EXIT ? quit = 1 : execute(command_number,
-					param1, param2);
+		if((strcmp(comando.comando,"exit")==0)){
+			break;
 		}
+
+		execute(&comando);
 
 		free(linea);
 	}
 	return EXIT_SUCCESS;
 }
 
-int parse(char **linea, char **param1, char **param2){
-	//separo el input en palabras
-	strtok(*linea, " ");
-	*param1 = strtok(NULL, " ");
-	*param2 = strtok(NULL, " ");
-	if(strtok(NULL, " ")) return -1; //en este caso hay mas de 2 parametros
-	return 0;
-}
+void execute(comando_t* unComando){
+	char comandoPrincipal[20];
+	char parametro1[20];
+	char parametro2[20];
+	char parametro3[20];
+	char parametro4[20];
+	char parametro5[20];
 
-void execute(int command_number, char* param1, char* param2){
-	switch(command_number){
-	case -1:
-		printf("Comando no reconocido\n");
-		break;
-	case SELECT:
-		if(!param1 && !param2) select_fs(param1,param2);
-		else{printf("El comando XXXX no recibe X parametros\n");}
-		break;
-	case INSERT:
-		if(!param1 && !param2) insert_fs(param1,param2,param1,param2);
-		else{printf("El comando XXXX no recibe X parametros\n");}
-		break;
-	case CREATE:
-		if(!param1 && !param2) create_fs();
-		else{printf("El comando XXXX no recibe X parametros\n");}
-		break;
-	case DESCRIBE:
-		if(!param1 && !param2) describe_fs();
-		else{printf("El comando XXXX no recibe X parametros\n");}
-		break;
-	case DROP:
-		if(!param1 && !param2) drop_fs();
-		else{printf("El comando XXXX no recibe X parametros\n");}
-		break;
-	case INFO:
-		if(!param1 && !param2) info();
-		else{printf("El comando XXXX no recibe X parametros\n");}
-		break;
+	strcpy(comandoPrincipal,unComando->comando);
+	strcpy(parametro1,unComando->parametro[0]);
+	strcpy(parametro2,unComando->parametro[1]);
+	strcpy(parametro3,unComando->parametro[2]);
+	strcpy(parametro4,unComando->parametro[3]);
+	strcpy(parametro5,unComando->parametro[4]);
+	
+
+	if(strcmp(comandoPrincipal,"select")==0){
+		select_fs(parametro1,parametro2);
+	}else if (strcmp(comandoPrincipal,"insert")==0){
+		insert_fs(parametro1,parametro2,parametro3,parametro4);
+	}else if (strcmp(comandoPrincipal,"create")==0){
+		//create_fs(parametro1,parametro2,parametro3,parametro4);
+	}else if (strcmp(comandoPrincipal,"describe")==0){
+		describe_fs(parametro1);
+	}else if (strcmp(comandoPrincipal,"drop")==0){
+		drop_fs(parametro1);
+	}else if (strcmp(comandoPrincipal,"info")==0){
+		info();
 	}
+
 }
 
-
-int find_in_array(char* linea, const char** command_list, int length){
-	for(int i = 0; i < length; i++)
-		if(strcmp(linea, command_list[i]) == 0) return i;
-	return -1;
-}
 
 void string_tolower(char* string){
 	for(int i = 0; string[i]; i++)
 		string[i] = tolower(string[i]);
+}
+
+void cargar_comando(comando_t* unComando, char* linea){
+
+	char delim[] = " ";
+	int indice = 0;
+
+	char *ptr = strtok(linea, delim);
+
+	strcpy(unComando->comando, ptr);
+	ptr = strtok(NULL, delim);
+
+	while(ptr != NULL && indice < 5)
+	{
+		strcpy(unComando->parametro[indice], ptr);
+		ptr = strtok(NULL, delim);
+		indice++;
+	}
+
+/*
+	printf("Un comando: '%s'\n",unComando->comando);
+	printf("Parametro 1'%s'\n",unComando->parametro[0]);
+	printf("Parametro 2'%s'\n",unComando->parametro[1]);
+	printf("Parametro 3'%s'\n",unComando->parametro[2]);
+	printf("Parametro 4'%s'\n",unComando->parametro[3]);
+*/
+
 }
