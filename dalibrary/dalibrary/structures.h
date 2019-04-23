@@ -135,6 +135,10 @@ typedef struct _KNLConfig {
 	int exec_delay;
 } KNLConfig;
 
+typedef struct {
+	char comando[20];
+	char parametro[5][20];
+} comando_t;
 
 
 #endif /* DALIBRARY_STRUCTURES_H_ */

@@ -1,5 +1,4 @@
 #include <dalibrary/libmain.h>
-#include "./include/headers.h"
 
 t_log * logger;
 t_config * config_file = null;
@@ -39,6 +38,8 @@ void describe_fs(char * table_name);
 void drop_fs(char * table_name);
 void dump_memtable();
 void compact(char * table_name);
+void execute_lfs(comando_t* unComando);
+void info();
 
 int main(int argc, char **argv) {
 	if (argc != 2) {
@@ -62,7 +63,7 @@ int main(int argc, char **argv) {
 	//Consola
 
 	pthread_t lfs_console_id;
-	pthread_create(&lfs_console_id, NULL, lfs_console_launcher, NULL);
+	pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
 
 	pthread_join(lfs_console_id,NULL);
 
@@ -1030,4 +1031,54 @@ void compact(char * table_name) {
 	list_clean(table->temp_c);
 
 	log_info(logger, "Compacted table %s", table_name);
+}
+
+
+
+
+void execute_lfs(comando_t* unComando){
+	char comandoPrincipal[20];
+	char parametro1[20];
+	char parametro2[20];
+	char parametro3[20];
+	char parametro4[20];
+	char parametro5[20];
+
+	imprimir_comando(unComando);
+
+	strcpy(comandoPrincipal,unComando->comando);
+	strcpy(parametro1,unComando->parametro[0]);
+	strcpy(parametro2,unComando->parametro[1]);
+	strcpy(parametro3,unComando->parametro[2]);
+	strcpy(parametro4,unComando->parametro[3]);
+	strcpy(parametro5,unComando->parametro[4]);
+
+
+
+	if(strcmp(comandoPrincipal,"select")==0){
+		select_fs(parametro1,atoi(parametro2));
+	}else if (strcmp(comandoPrincipal,"insert")==0){
+		insert_fs(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+	}else if (strcmp(comandoPrincipal,"create")==0){
+		//create_fs(parametro1,parametro2,parametro3,parametro4);
+	}else if (strcmp(comandoPrincipal,"describe")==0){
+		describe_fs(parametro1);
+	}else if (strcmp(comandoPrincipal,"drop")==0){
+		drop_fs(parametro1);
+	}else if (strcmp(comandoPrincipal,"info")==0){
+		info();
+	}
+
+}
+
+void info(){
+    printf("SELECT\n La operación Select permite la obtención del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n SELECT [NOMBRE_TABLA] [KEY]\n\n");
+
+    printf("INSERT\n La operación Insert permite la creación y/o actualización del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp]\n\n");
+
+    printf("CREATE\n La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:\n CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n\n");
+
+    printf("DESCRIBE\n La operación Describe permite obtener la Metadata de una tabla en particular o de todas las tablas que el File System tenga. Para esto, se utiliza la siguiente nomenclatura:\n DESCRIBE [NOMBRE_TABLA]\n\n");
+
+    printf("DROP\n La operación Drop permite la eliminación de una tabla del file system. Para esto, se utiliza la siguiente nomenclatura:\n DROP [NOMBRE_TABLA]\n\n");
 }

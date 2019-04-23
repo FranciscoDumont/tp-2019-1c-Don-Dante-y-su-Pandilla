@@ -29,6 +29,9 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include "structures.h"
 
 
@@ -70,6 +73,10 @@ unsigned long unix_epoch();
 char * consistency_to_char(ConsistencyTypes consistency);
 ConsistencyTypes char_to_consistency(char * consistency);
 
+void cargar_comando(comando_t*, char*);
+void imprimir_comando(comando_t*);
+void vaciar_comando(comando_t* );
+void * crear_consola(void (*execute)(comando_t*),char* unString);
 
 
 #endif

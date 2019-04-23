@@ -438,3 +438,73 @@ ConsistencyTypes char_to_consistency(char * consistency) {
 		return EVENTUAL_CONSISTENCY;
 	}
 }
+
+//Consola
+void cargar_comando(comando_t* unComando, char* linea){
+
+	char delim[] = " ";
+	int indice = 0;
+	char* saveptr;
+
+	char *ptr = strtok_r(linea, delim,&saveptr);
+
+	strcpy(unComando->comando, ptr);
+	ptr = strtok_r(NULL, delim,&saveptr);
+
+	while(ptr != NULL && indice < 5)
+	{
+		strcpy(unComando->parametro[indice], ptr);
+		ptr = strtok_r(NULL, delim,&saveptr);
+		indice++;
+	}
+
+}
+
+void vaciar_comando(comando_t* unComando){
+
+	*unComando->comando = '\0';
+	*unComando->parametro[0] = '\0';
+	*unComando->parametro[1] = '\0';
+	*unComando->parametro[2] = '\0';
+	*unComando->parametro[3] = '\0';
+	*unComando->parametro[4] = '\0';
+
+}
+
+void imprimir_comando(comando_t* unComando){
+	printf("unComando->comando: %s\n",unComando->comando );
+	printf("unComando->parametro[0]: %s\n",unComando->parametro[0] );
+	printf("unComando->parametro[1]: %s\n",unComando->parametro[1] );
+	printf("unComando->parametro[2]: %s\n",unComando->parametro[2] );
+	printf("unComando->parametro[3]: %s\n",unComando->parametro[3] );
+	printf("unComando->parametro[4]: %s\n",unComando->parametro[4] );
+}
+
+
+void * crear_consola(void (*execute)(comando_t*),char* unString) {
+
+	comando_t comando;
+
+	char *linea;
+	int quit = 0;
+
+	printf("Bienvenido/a a la consola del %s\n",unString);
+	printf("Escribi 'info' para obtener una lista de comandos\n\n");
+
+	while(quit == 0){
+
+		linea = readline("> ");
+		add_history(linea);
+		cargar_comando(&comando,linea);
+
+		if((strcmp(comando.comando,"exit")!=0)){
+			(*execute)(&comando);
+		}else quit = 1;
+
+
+		vaciar_comando(&comando);
+		free(linea);
+	}
+	return EXIT_SUCCESS;
+}
+
