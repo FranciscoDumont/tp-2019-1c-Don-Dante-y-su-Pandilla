@@ -495,14 +495,13 @@ void * crear_consola(void (*execute)(comando_t*),char* unString) {
 
 		linea = readline("> ");
 		add_history(linea);
+		vaciar_comando(&comando);
 		cargar_comando(&comando,linea);
 
 		if((strcmp(comando.comando,"exit")!=0)){
 			(*execute)(&comando);
 		}else quit = 1;
 
-
-		vaciar_comando(&comando);
 		free(linea);
 	}
 	return EXIT_SUCCESS;
