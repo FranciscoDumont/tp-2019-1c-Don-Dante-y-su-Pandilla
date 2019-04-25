@@ -574,7 +574,7 @@ t_list * search_key_in_partitions(char * table_name, int key) {
 		char *	value = malloc(config.value_size);
 		unsigned long timestamp;
 
-		sscanf(token, "%ul;%d;%s", &timestamp, &t_key, value);
+		sscanf(token, "%lu;%d;%s", &timestamp, &t_key, value);
 
 		if(key == t_key) {
 			MemtableKeyReg * reg	= malloc(sizeof(MemtableKeyReg));
@@ -623,7 +623,7 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 			char * value = malloc(config.value_size);
 			unsigned long timestamp;
 
-			sscanf(token, "%ul;%d;%s", &timestamp, &t_key, value);
+			sscanf(token, "%lu;%d;%s", &timestamp, &t_key, value);
 
 			if(key == t_key) {
 				MemtableKeyReg * reg = malloc(sizeof(MemtableKeyReg));
@@ -658,7 +658,7 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 			char * value = malloc(config.value_size);
 			unsigned long timestamp;
 
-			sscanf(token, "%ul;%d;%s", &timestamp, &t_key, value);
+			sscanf(token, "%lu;%d;%s", &timestamp, &t_key, value);
 
 			if(key == t_key) {
 				MemtableKeyReg * reg = malloc(sizeof(MemtableKeyReg));
@@ -695,7 +695,7 @@ char * select_fs(char * table_name, int key) {
 	for(reg_iterator=0 ; reg_iterator<hits->elements_count ; reg_iterator++) {
 		MemtableKeyReg * reg = list_get(hits, reg_iterator);
 
-		//log_info(logger, "   %ul %d %s", reg->timestamp, reg->key, reg->value);
+		//log_info(logger, "   %lu %d %s", reg->timestamp, reg->key, reg->value);
 
 		if(reg->timestamp > final_hit->timestamp) {
 			final_hit = reg;
@@ -865,7 +865,7 @@ void dump_memtable() {
 			if(counter != 0) {
 				strcat(temp_content, "\n");
 			}
-			sprintf(thisline, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+			sprintf(thisline, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 			strcat(temp_content, thisline);
 
 			counter++;
@@ -931,7 +931,7 @@ void compact(char * table_name) {
 			char * value = malloc(config.value_size);
 			unsigned long timestamp;
 
-			sscanf(token, "%ul;%d;%s", &timestamp, &t_key, value);
+			sscanf(token, "%lu;%d;%s", &timestamp, &t_key, value);
 
 			MemtableKeyReg * reg	= malloc(sizeof(MemtableKeyReg));
 			reg->key				= t_key;
@@ -968,7 +968,7 @@ void compact(char * table_name) {
 				unsigned long timestamp_p;
 				char * this_line;
 
-				sscanf(token_partition, "%ul;%d;%s", &timestamp_p, &key_p, value_p);
+				sscanf(token_partition, "%lu;%d;%s", &timestamp_p, &key_p, value_p);
 
 				MemtableKeyReg * reg_p	= malloc(sizeof(MemtableKeyReg));
 				reg_p->key				= key_p;
@@ -981,7 +981,7 @@ void compact(char * table_name) {
 							strcat(new_partition_content, "\n");
 						}
 						this_line = malloc(3 + config.value_size + 10);
-						sprintf(this_line, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+						sprintf(this_line, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 						strcat(new_partition_content, this_line);
 						counter_partition++;
 					} else {
@@ -989,7 +989,7 @@ void compact(char * table_name) {
 							strcat(new_partition_content, "\n");
 						}
 						this_line = malloc(3 + config.value_size + 10);
-						sprintf(this_line, "%ul;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
+						sprintf(this_line, "%lu;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
 						strcat(new_partition_content, this_line);
 						counter_partition++;
 					}
@@ -998,7 +998,7 @@ void compact(char * table_name) {
 						strcat(new_partition_content, "\n");
 					}
 					this_line = malloc(3 + config.value_size + 10);
-					sprintf(this_line, "%ul;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
+					sprintf(this_line, "%lu;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
 					strcat(new_partition_content, this_line);
 					counter_partition++;
 				}
@@ -1007,7 +1007,7 @@ void compact(char * table_name) {
 			if(counter_partition == 0) {
 				//Empty partition file
 				char * this_line = malloc(3 + config.value_size + 10);
-				sprintf(this_line, "%ul;%d;%s", reg->timestamp, reg->key, reg->value);
+				sprintf(this_line, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 				strcat(new_partition_content, this_line);
 			}
 
@@ -1053,18 +1053,59 @@ void execute_lfs(comando_t* unComando){
 	strcpy(parametro4,unComando->parametro[3]);
 	strcpy(parametro5,unComando->parametro[4]);
 
-
-
+	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
-		select_fs(parametro1,atoi(parametro2));
+		if(parametro1[0] == '\0'){
+			printf("select no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			printf("select no recibio la key\n");
+			return;
+		}else select_fs(parametro1,atoi(parametro2));
+
+	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
-		insert_fs(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+		if(parametro1[0] == '\0'){
+			printf("insert no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			printf("insert no recibio la key\n");
+			return;
+		}else if (parametro3[0] == '\0'){
+			printf("insert no recibio el valor\n");
+			return;
+		}else if (parametro4[0] == '\0'){
+			insert_fs(parametro1,atoi(parametro2),parametro3,unix_epoch());	
+		}else insert_fs(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+
+	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
-		//create_fs(parametro1,parametro2,parametro3,parametro4);
+		if(parametro1[0] == '\0'){
+			printf("create no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			printf("create no recibio el tipo de consistencia\n");
+			return;
+		}else if (parametro3[0] == '\0'){
+			printf("create no recibio la particion\n");
+			return;
+		}else if (parametro4[0] == '\0'){
+			printf("create no recibio el tiempo de compactacion\n");
+			return;
+		}else create_fs(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
+	
+	//DESCRIBE
 	}else if (strcmp(comandoPrincipal,"describe")==0){
+		//chekea si parametro es nulo adentro de describe_fs
 		describe_fs(parametro1);
+
+	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
-		drop_fs(parametro1);
+		if(parametro1[0] == '\0'){
+			printf("drop no recibio el nombre de la tabla\n");
+		}else drop_fs(parametro1);
+
+	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		info();
 	}
