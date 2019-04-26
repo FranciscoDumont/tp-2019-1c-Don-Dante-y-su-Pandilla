@@ -488,7 +488,7 @@ void * crear_consola(void (*execute)(comando_t*),char* unString) {
 	char *linea;
 	int quit = 0;
 
-	printf("Bienvenido/a a la consola del %s\n",unString);
+	printf("Bienvenido/a a la consola de %s\n",unString);
 	printf("Escribi 'info' para obtener una lista de comandos\n\n");
 
 	while(quit == 0){

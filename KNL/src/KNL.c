@@ -9,6 +9,15 @@ t_list * gossiping_list;
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
 
+//TODO: Implementar luego
+int insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
+int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
+char * select_knl(char * table_name, int key);
+void describe_knl(char * table_name);
+void drop_knl(char * table_name);
+void execute_knl(comando_t* unComando);
+void info();
+
 int main(int argc, char **argv) {
 	if (argc != 2) {
 		config_file = config_create("knl01.cfg");
@@ -30,7 +39,11 @@ int main(int argc, char **argv) {
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
 
+	pthread_t knl_console_id;
+	pthread_create(&knl_console_id, NULL, crear_consola(execute_knl,"Kernel"), NULL);
+
 	pthread_join(thread_g, NULL);
+	pthread_join(knl_console_id,NULL);
 
 	return EXIT_SUCCESS;
 }
@@ -108,4 +121,81 @@ void gossiping_thread() {
 }
 void gossiping_start(pthread_t * thread) {
 	pthread_create(thread, NULL, gossiping_thread, NULL);
+}
+
+//TODO: Completar cuando se tenga la implementacion de las funciones
+void execute_knl(comando_t* unComando){
+	char comandoPrincipal[20];
+	char parametro1[20];
+	char parametro2[20];
+	char parametro3[20];
+	char parametro4[20];
+	char parametro5[20];
+
+	imprimir_comando(unComando);
+
+	strcpy(comandoPrincipal,unComando->comando);
+	strcpy(parametro1,unComando->parametro[0]);
+	strcpy(parametro2,unComando->parametro[1]);
+	strcpy(parametro3,unComando->parametro[2]);
+	strcpy(parametro4,unComando->parametro[3]);
+	strcpy(parametro5,unComando->parametro[4]);
+
+	//SELECT
+	if(strcmp(comandoPrincipal,"select")==0){
+		if(parametro1[0] == '\0'){
+			printf("select no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			printf("select no recibio la key\n");
+			return;
+		}//else select_knl(parametro1,atoi(parametro2));
+
+	//INSERT
+	}else if (strcmp(comandoPrincipal,"insert")==0){
+		if(parametro1[0] == '\0'){
+			printf("insert no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			printf("insert no recibio la key\n");
+			return;
+		}else if (parametro3[0] == '\0'){
+			printf("insert no recibio el valor\n");
+			return;
+		}else if (parametro4[0] == '\0'){
+//			insert_knl(parametro1,atoi(parametro2),parametro3,unix_epoch());
+		}//else insert_knl(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+
+	//CREATE
+	}else if (strcmp(comandoPrincipal,"create")==0){
+		if(parametro1[0] == '\0'){
+			printf("create no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			printf("create no recibio el tipo de consistencia\n");
+			return;
+		}else if (parametro3[0] == '\0'){
+			printf("create no recibio la particion\n");
+			return;
+		}else if (parametro4[0] == '\0'){
+			printf("create no recibio el tiempo de compactacion\n");
+			return;
+		}//else create_knl(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
+	
+	//DESCRIBE
+	}else if (strcmp(comandoPrincipal,"describe")==0){
+		//chekea si parametro es nulo adentro de describe_knl
+//		describe_knl(parametro1);
+
+	//DROP
+	}else if (strcmp(comandoPrincipal,"drop")==0){
+		if(parametro1[0] == '\0'){
+			printf("drop no recibio el nombre de la tabla\n");
+		}//else drop_knl(parametro1);
+
+	//INFO
+	}else if (strcmp(comandoPrincipal,"info")==0){
+//		info();
+	}
+
 }
