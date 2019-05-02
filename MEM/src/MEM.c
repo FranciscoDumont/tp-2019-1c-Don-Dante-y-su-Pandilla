@@ -6,6 +6,24 @@ MEMConfig config;
 
 t_list * gossiping_list;
 
+void* memoriaPrincipal;
+
+t_list tabla_segmentos;
+
+typedef struct {
+	char* nombre;
+	char* path;
+	t_list paginas;
+} segmento_t;
+
+typedef struct {
+	int nro_pagina;
+	void* puntero_pagina;
+	int flag_modificado;
+} pagina_t;
+
+
+
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
 
@@ -66,12 +84,21 @@ int main(int argc, char **argv) {
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
 	
+	pthread_t administrar_memoria_id;
+	pthread_create(&administrar_memoria_id, NULL, administrar_memoria(), NULL);
+
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
 	pthread_join(mem_console_id, NULL);
 
 
 	return EXIT_SUCCESS;
+}
+
+void administrar_memoria(){
+
+	int limite_paginas = config.memsize/sizeof(MemtableKeyReg);
+	void* memoria_principal = malloc(config.memsize);
 }
 
 //Gossiping
