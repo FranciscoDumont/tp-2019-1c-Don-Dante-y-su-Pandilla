@@ -75,21 +75,37 @@ int main(int argc, char **argv) {
 	strcat(memory_logger_path, ".log");
 	logger = log_create(memory_logger_path, "MEM", true, LOG_LEVEL_TRACE);
 
+	config.lfs_socket = create_socket();
+	if (config.lfs_socket != -1 && (connect_socket(config.lfs_socket, config.lfs_ip, config.lfs_port)) == -1) {
+		log_info(logger, "No hay LFS");
+		return EXIT_FAILURE;
+	}
+
+	send_data(config.lfs_socket, HANDSHAKE_MEM_LFS, 0, null);
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.lfs_socket, header);
+	if(header->type == HANDSHAKE_MEM_LFS_OK) {
+		log_info(logger, "LFS ANSWERED SUCCESFULLY");
+	} else {
+		log_info(logger, "UNEXPECTED HANDSHAKE RESULT");
+		return EXIT_FAILURE;
+	}
+
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
 
 	pthread_t thread_server;
 	server_start(&thread_server);
 
-	pthread_t mem_console_id;
-	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
+	//pthread_t mem_console_id;
+	//pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
 	
 	pthread_t administrar_memoria_id;
 	pthread_create(&administrar_memoria_id, NULL, administrar_memoria(), NULL);
 
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
-	pthread_join(mem_console_id, NULL);
+	//pthread_join(mem_console_id, NULL);
 
 
 	return EXIT_SUCCESS;

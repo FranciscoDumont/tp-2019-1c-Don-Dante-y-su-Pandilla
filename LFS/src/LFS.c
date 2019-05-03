@@ -41,6 +41,8 @@ void compact(char * table_name);
 void execute_lfs(comando_t* unComando);
 void info();
 
+int lfs_server();
+
 int main(int argc, char **argv) {
 	if (argc != 2) {
 		config_file = config_create("lfs01.cfg");
@@ -60,14 +62,45 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
+	pthread_t lfs_server_thread;
+	pthread_create(&lfs_server_thread, NULL, lfs_server, NULL);
+
 	//Consola
 
-	pthread_t lfs_console_id;
-	pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
+	//pthread_t lfs_console_id;
+	//pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
 
-	pthread_join(lfs_console_id,NULL);
+	//pthread_join(lfs_console_id,NULL);
+	pthread_join(lfs_server_thread, NULL);
 
 	return EXIT_SUCCESS;
+}
+
+int lfs_server() {
+	if((config.mysocket = create_socket()) == -1) {
+			return EXIT_FAILURE;
+	}
+	if((bind_socket(config.mysocket, config.port)) == -1) {
+		return EXIT_FAILURE;
+	}
+
+	void new(int fd, char * ip, int port) {
+		log_info(logger, "SE CONECTO UN CLIENTE");
+	}
+	void lost(int fd, char * ip, int port) {
+
+	}
+	void incoming(int fd, char * ip, int port, MessageHeader * header) {
+		switch(header->type) {
+			case HANDSHAKE_MEM_LFS:
+				;
+				log_info(logger, "FOUND NEW MEMORY IN %s:%d", ip, port);
+				send_data(fd, HANDSHAKE_MEM_LFS_OK, 0, null);
+				break;
+		}
+	}
+	log_info(logger, "Iniciado server de LFS");
+	start_server(config.mysocket, &new, &lost, &incoming);
 }
 
 char * to_upper_string(char * string) {
