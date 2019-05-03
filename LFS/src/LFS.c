@@ -95,7 +95,30 @@ int lfs_server() {
 			case HANDSHAKE_MEM_LFS:
 				;
 				log_info(logger, "FOUND NEW MEMORY IN %s:%d", ip, port);
-				send_data(fd, HANDSHAKE_MEM_LFS_OK, 0, null);
+				send_data(fd, HANDSHAKE_MEM_LFS_OK, sizeof(int), &config.value_size);
+				break;
+			case MEM_LFS_CREATE:
+				;
+				int table_name_size;
+				recv(fd, &table_name_size, sizeof(int), 0);
+
+				char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
+				recv(fd, table_name, table_name_size, 0);
+				table_name[table_name_size / sizeof(char)] = '\0';
+
+				int consistency, partitions, compaction_time;
+				recv(fd, &consistency, sizeof(int), 0);
+				recv(fd, &partitions, sizeof(int), 0);
+				recv(fd, &compaction_time, sizeof(int), 0);
+
+				int op_result;
+				op_result = create_fs(table_name, consistency, partitions, compaction_time);
+
+				if(op_result == true) {
+					send_data(fd, OPERATION_SUCCESS, 0, null);
+				} else {
+					send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
+				}
 				break;
 		}
 	}

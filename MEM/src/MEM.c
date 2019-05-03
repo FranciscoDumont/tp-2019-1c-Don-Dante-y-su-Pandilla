@@ -86,6 +86,9 @@ int main(int argc, char **argv) {
 	recieve_header(config.lfs_socket, header);
 	if(header->type == HANDSHAKE_MEM_LFS_OK) {
 		log_info(logger, "LFS ANSWERED SUCCESFULLY");
+		recv(config.lfs_socket, &config.value_size, sizeof(int), 0);
+
+		log_info(logger, "VALUE SIZE RECIEVED %d", config.value_size);
 	} else {
 		log_info(logger, "UNEXPECTED HANDSHAKE RESULT");
 		return EXIT_FAILURE;
@@ -97,24 +100,29 @@ int main(int argc, char **argv) {
 	pthread_t thread_server;
 	server_start(&thread_server);
 
-	//pthread_t mem_console_id;
-	//pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
-	
-	pthread_t administrar_memoria_id;
-	pthread_create(&administrar_memoria_id, NULL, administrar_memoria(), NULL);
+	administrar_memoria();
+
+	pthread_t mem_console_id;
+	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
 
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
-	//pthread_join(mem_console_id, NULL);
-
+	pthread_join(mem_console_id, NULL);
 
 	return EXIT_SUCCESS;
 }
 
-void administrar_memoria(){
+int obtener_tamanio_pagina() {
+	return sizeof(unsigned long) +
+			sizeof(int) +
+			config.value_size;
+}
 
-	int limite_paginas = config.memsize/sizeof(MemtableKeyReg);
+void administrar_memoria(){
+	int limite_paginas = config.memsize / obtener_tamanio_pagina();
 	void* memoria_principal = malloc(config.memsize);
+
+	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
 }
 
 //Gossiping

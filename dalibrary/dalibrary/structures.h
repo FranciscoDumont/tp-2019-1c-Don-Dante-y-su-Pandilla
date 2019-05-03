@@ -29,7 +29,10 @@ typedef enum _MessageType {
 	HANDSHAKE_RESPONSE,
 	GOSSIPING_REQUEST,
 	HANDSHAKE_MEM_LFS,
-	HANDSHAKE_MEM_LFS_OK
+	HANDSHAKE_MEM_LFS_OK,
+	OPERATION_SUCCESS,
+	MEM_LFS_CREATE,
+	CREATE_FAILED_EXISTENT_TABLE
 } MessageType;
 
 typedef struct _MessageHeader {
@@ -119,6 +122,7 @@ typedef struct _MEMConfig {
 	int memory_id;
 	int mysocket;
 	int lfs_socket;
+	int value_size;
 } MEMConfig;
 
 typedef struct _MemPoolData {
