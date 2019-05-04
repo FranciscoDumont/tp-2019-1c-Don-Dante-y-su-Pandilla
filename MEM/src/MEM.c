@@ -164,6 +164,17 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		crear_segmento(nombre_tabla);
 		insert_mem(nombre_tabla,key,valor,timestamp);
 	}
+	//add_instruction(instruction);
+}
+
+void add_instruction(Instruction i){
+	Instruction *new;
+	new = malloc(sizeof(Instruction));
+	//new->
+}
+
+void journal(){
+
 }
 
 //busca la pagina con el nomre y key y actualiza el valor

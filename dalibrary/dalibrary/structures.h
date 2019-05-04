@@ -145,7 +145,33 @@ typedef struct _MemPoolData {
 	int memory_id;
 } MemPoolData;
 
+typedef enum _InstructionType{
+	SELECT,
+	INSERT,
+	CRETAE,
+	DESCRIBE,
+	DROP,
+	JOURNAL
+}InstructionType;
 
+typedef struct _Instruction {
+	InstructionType type;
+	char * table_name;
+	int key;
+	char * value;
+	ConsistencyTypes type;
+	int partitions;
+	unsigned long compaction_time;
+}Instruction;
+
+typedef struct _InstructionList{
+	Instruction i;
+
+	InstructionList *next;
+}InstructionList;
+
+InstructionList *first = NULL;
+InstructionList *last = NULL;
 
 //Kernel
 typedef struct _KNLConfig {
