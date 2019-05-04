@@ -91,6 +91,9 @@ int lfs_server() {
 		log_info(logger, "MEMORY DISCONNECTED", ip, port);
 	}
 	void incoming(int fd, char * ip, int port, MessageHeader * header) {
+		int table_name_size;
+		char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
+
 		switch(header->type) {
 			case HANDSHAKE_MEM_LFS:
 				;
@@ -100,10 +103,9 @@ int lfs_server() {
 			case MEM_LFS_CREATE:
 				;
 				log_info(logger, "NEW MEMORY WILL BE CREATED");
-				int table_name_size;
+
 				recv(fd, &table_name_size, sizeof(int), 0);
 
-				char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 				recv(fd, table_name, table_name_size, 0);
 				table_name[table_name_size / sizeof(char)] = '\0';
 				table_name = to_upper_string(table_name);
@@ -113,37 +115,97 @@ int lfs_server() {
 				recv(fd, &partitions, sizeof(int), 0);
 				recv(fd, &compaction_time, sizeof(int), 0);
 
-				int op_result;
-				op_result = create_fs(table_name, consistency, partitions, compaction_time);
+				int creation_result;
+				creation_result = create_fs(table_name, consistency, partitions, compaction_time);
 
-				if(op_result == true) {
+				if(creation_result == true) {
 					send_data(fd, OPERATION_SUCCESS, 0, null);
 				} else {
 					send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
 				}
 				break;
 			case MEM_LFS_SELECT:
-				int table_name_size;
 				recv(fd, &table_name_size, sizeof(int), 0);
-
-				char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 				recv(fd, table_name, table_name_size, 0);
 
+				table_name[table_name_size / sizeof(char)] = '\0';
+				table_name = to_upper_string(table_name);
 
+
+				char * select_result;
+				int key;
+				recv(fd, &key, sizeof(int), 0);
+
+				select_result = select_fs(table_name, key);
+
+				if(strcmp(select_result, "UNKNOWN") == 0){
+					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+				}else{
+					send_data(fd, OPERATION_SUCCESS, 0, null);
+				}
+				//free(select_result)
 				;
 				break;
 			case MEM_LFS_INSERT:
+				//int insert_fs(char * table_name, int key, char * value, unsigned long timestamp)
+				recv(fd, &table_name_size, sizeof(int), 0);
+				recv(fd, table_name, table_name_size, 0);
+
+				table_name[table_name_size / sizeof(char)] = '\0';
+				table_name = to_upper_string(table_name);
+
+				int key;
+				char * value;
+				unsigned long timestamp;
+				recv(fd, &key, sizeof(int), 0);
+				recv(fd, &value, sizeof(char), 0);
+				recv(fd, &timestamp, sizeof(long), 0);
+
+				int insert_result;
+				insert_result = insert_fs(table_name, key, &value, timestamp);
+
+				if(insert_result == 0){
+					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+				}else{
+					send_data(fd, OPERATION_SUCCESS, 0, null);
+				}
+
+				//free(value);
 				;
 				break;
 			case MEM_LFS_DESCRIBE:
 				;
+				//void describe_fs(char * table_name)
+				recv(fd, &table_name_size, sizeof(int), 0);
+				recv(fd, table_name, table_name_size, 0);
+
+				int describe_result = describe_fs(table_name);
+
+				if(describe_result == true){
+					send_data(fd, OPERATION_SUCCESS, 0, null);
+				}else{
+					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+				}
+
 				break;
 			case MEM_LFS_DROP:
 				;
+				recv(fd, &table_name_size, sizeof(int), 0);
+				recv(fd, table_name, table_name_size, 0);
+
+				int drop_result = drop_fs(table_name);
+
+				if(drop_result == true){
+					send_data(fd, OPERATION_SUCCESS, 0, null);
+				}else{
+					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+				}
+
 				break;
 
 		}
 	}
+	// free(table_name);
 	log_info(logger, "Iniciado server de LFS");
 	start_server(config.mysocket, &new, &lost, &incoming);
 }
@@ -765,7 +827,7 @@ char * select_fs(char * table_name, int key) {
 
 	if(hits->elements_count == 0) {
 		//no hay registros con esa key
-		return "UNK";
+		return "UNKNOWN";
 	}
 
 	MemtableKeyReg * final_hit = list_get(hits, 0);
@@ -788,7 +850,7 @@ void inform_table_metadata(MemtableTableReg * reg) {
 		reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
 }
 
-void describe_fs(char * table_name) { //table_name puede ser nulo
+int describe_fs(char * table_name) { //table_name puede ser nulo
 	if(table_name == null) {
 		DIR * tables_directory;
 		struct dirent * tables_dirent;
@@ -820,13 +882,14 @@ void describe_fs(char * table_name) { //table_name puede ser nulo
 			}
 			closedir(tables_directory);
 		}
+		return true;
 	} else {
 		table_name = to_upper_string(table_name);
 		char * metadatafilepath = generate_table_metadata_path(table_name);
 		FILE * metadatafile_ptr = fopen(metadatafilepath, "r");
 		if(metadatafile_ptr == null) {
-			log_info(logger, "Table doesnt exists");
-			return;
+			log_info(logger, "Table does not exist");
+			//return;
 		}
 		fclose(metadatafile_ptr);
 
@@ -842,9 +905,10 @@ void describe_fs(char * table_name) { //table_name puede ser nulo
 
 		inform_table_metadata(reg);
 	}
+	return false;
 }
 
-void drop_fs(char * table_name) {
+int drop_fs(char * table_name) {
 	table_name = to_upper_string(table_name);
 	int index_in_memtable = -1, aux_counter = 0;
 
@@ -861,12 +925,18 @@ void drop_fs(char * table_name) {
 		MemtableTableReg * reg = list_get(memtable, index_in_memtable);
 		list_remove(memtable, index_in_memtable);
 		free(reg);
+	}else{
+		return false;
 	}
 	char * metadatafilepath	= generate_table_metadata_path(table_name);
 	FILE * metadata_ptr		= fopen(metadatafilepath, "r");
+
+	/*
 	if(metadata_ptr == null) {
 		return;
 	}
+	*/
+
 	fclose(metadata_ptr);
 
 	t_config * config = config_create(metadatafilepath);
@@ -895,6 +965,8 @@ void drop_fs(char * table_name) {
 	system(remove_command);
 
 	free(remove_command);
+
+	return true;
 }
 
 void dump_memtable() {
