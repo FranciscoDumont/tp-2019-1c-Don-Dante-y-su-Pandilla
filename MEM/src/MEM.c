@@ -8,17 +8,17 @@ t_list * gossiping_list;
 
 void* memoriaPrincipal;
 
-t_list tabla_segmentos;
+t_list* tabla_segmentos;
 
 typedef struct {
 	char* nombre;
 	char* path;
-	t_list paginas;
+	t_list* paginas;
 } segmento_t;
 
 typedef struct {
 	int nro_pagina;
-	void* puntero_pagina;
+	void* puntero_memoria;
 	int flag_modificado;
 } pagina_t;
 
@@ -96,9 +96,142 @@ int main(int argc, char **argv) {
 }
 
 void administrar_memoria(){
-
+	int cantidad_paginas_actuales = 0;
 	int limite_paginas = config.memsize/sizeof(MemtableKeyReg);
+	int mapa_memoria[limite_paginas] = {0}; //array lleno de 0
 	void* memoria_principal = malloc(config.memsize);
+}
+
+//TODO: Manejar el tema de timestamp desde la funcion que llama a esta
+int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp) {
+
+	//Verifica si existe el segmento de la tabla en la memoria principal
+	if(existe_segmento(nombre_tabla)){
+	//De existir, busca en sus páginas si contiene la key solicitada y de contenerla actualiza 
+	//el valor insertando el Timestamp actual.
+		if (existe_pagina_en_segmento(key,nombre_tabla)){
+			actualizar_pagina(nombre_tabla,key,valor,timestamp);
+		} else{
+		//En caso que no contenga la Key, se solicita una nueva página para almacenar la misma.
+		//Se deberá tener en cuenta que si no se disponen de páginas libres aplicar el algoritmo de reemplazo 
+		//y en caso de que la memoria se encuentre full iniciar el proceso Journal.
+			if (hay_paginas_disponibles()){
+				crear_pagina(nombre_tabla,key,valor,timestamp,1);
+			}else{
+				//todas las paginas estan llenas con o sin modificar
+				if (memoria_esta_full()){
+					//hacer el journaling
+					//hacer journal e insertar o solo hacer journal ?? 
+				}else {
+					//algoritmo de reemplazo
+					sacar_lru();
+					crear_pagina(nombre_tabla,key,valor,timestamp,1);
+				}
+			}
+
+		}
+	}else {
+		//si no existe el segmento crear el segmento y llamar recursivamente a insert_mem
+		//deberia verificar con el fileSystem para ver si se puede agregar sin hacer un create antes
+		crear_segmento(nombre_tabla);
+		insert_mem(nombre_tabla,key,valor,timestamp);
+	}
+}
+
+//busca la pagina con el nomre y key y actualiza el valor
+void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp){
+	segmento_t* segmento_encontrado = find_segmento(nombre_tabla);
+	pagina_t* pagina_encontrada = find_pagina_en_segmento(key,segmento_encontrado)
+
+	if(pagina_t){
+		set_pagina_timestamp(pagina_encontrada,timestamp);
+		set_pagina_key(pagina_encontrada,key);
+		set_pagina_value(pagina_encontrada,valor);
+	} else {
+		log_info(logger, "NO SE ENCONTRO LA PAGINA %d en la tabla %s => NO SE PUDO COMPLETA LA OPERACION",key,nombre_tabla);
+	} 
+}
+
+void* get_memoria_libre(){
+	int i;
+	for (i = 0; i<sizeof(mapa_memoria)/sizeof(mapa_memoria[0]) && mapa_memoria[i] != 0; ++i)
+	{
+
+	}
+	return memoria_principal+i*obtener_tamanio_pagina();
+}
+
+pagina_t* crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int flag_modificado){
+	//creo la pagina en mi estructura de paginas
+	pagina_t* nueva_pagina = malloc(sizeof(pagina_t));
+	pagina_t->puntero_memoria = get_memoria_libre();
+	pagina_t->flag_modificado
+	//luego la pongo en memoria
+
+}
+segmento* crear_segmento(char* nombre_tabla){
+
+}
+
+segmento_t* find_segmento(char* segmento_buscado){
+
+	bool key_search(segmento_t* un_segmento){
+		return strcmp(un_segmento->nombre,segmento_buscado) == 0;
+	}
+
+	segmento_t* segmento_encontrado = list_find(tabla_segmentos,(void*)key_search);
+	return segmento_encontrado;
+}
+
+pagina_t* find_pagina_en_segmento(int key_buscado,segmento_t* segmento_buscado){
+
+	bool key_search(pagina_t* pagina_buscada){
+		return get_pagina_key(pagina_buscada) == key_buscado;
+	}
+
+	pagina_t* pagina_encontrada = list_find(segmento_buscado->paginas,(void*)key_search);
+	return pagina_encontrada;
+}
+
+int memoria_esta_full(){
+	return cantidad_paginas_actuales >= limite_paginas; 
+}
+
+//dice si existe un segmento con ese nombre
+int existe_segmento(char* segmento_buscado){
+	return find_segmento(segmento_buscado) != NULL;
+}
+//dice si existe una pagina x en el registro y 
+int existe_pagina_en_segmento(int pagina_buscada,segmento_t* segmento_buscado){
+	return find_pagina_en_segmento(pagina_buscada,segmento_buscado) != NULL;
+}
+
+void set_pagina_timestamp(pagina_t* una_pagina,unsigned long un_timestamp){
+	memcpy(una_pagina->puntero_memoria,&un_timestamp,sizeof(unsigned long));
+}
+void set_pagina_key(pagina_t* una_pagina,int un_key){
+	memcpy(una_pagina->puntero_memoria+sizeof(unsigned long),&un_key,sizeof(int));
+}
+void set_pagina_value(pagina_t* una_pagina,char* un_value){
+	//TODO: Ver eso de rellenar el char con null si es menor a lo qe pide
+	memcpy(una_pagina->puntero_memoria+sizeof(unsigned long)+sizeof(int),&un_value,sizeof(char*));
+}
+
+unsigned long get_pagina_timestamp(pagina_t* una_pagina){
+	unsigned long un_timestamp;
+	memcpy(&un_timestamp,una_pagina->puntero_memoria,sizeof(unsigned long));
+	return un_timestamp;
+}
+int get_pagina_key(pagina_t* una_pagina){
+	int un_key;
+	memcpy(&un_key,una_pagina->puntero_memoria+sizeof(unsigned long),sizeof(int));
+	return un_key;
+}
+char get_pagina_value(pagina_t* una_pagina){
+	char un_value;
+	//TODO: Ver eso de rellenar el char con null si es menor a lo qe pide
+	memcpy(&un_value,(una_pagina->puntero_memoria)+sizeof(unsigned long)+sizeof(int),sizeof(char*));
+	return un_value;
 }
 
 //Gossiping
