@@ -85,10 +85,10 @@ int lfs_server() {
 	}
 
 	void new(int fd, char * ip, int port) {
-		log_info(logger, "SE CONECTO UN CLIENTE");
+		log_info(logger, "NEW MEMORY CONNECTED!");
 	}
 	void lost(int fd, char * ip, int port) {
-
+		log_info(logger, "MEMORY DISCONNECTED", ip, port);
 	}
 	void incoming(int fd, char * ip, int port, MessageHeader * header) {
 		switch(header->type) {
@@ -99,12 +99,14 @@ int lfs_server() {
 				break;
 			case MEM_LFS_CREATE:
 				;
+				log_info(logger, "NEW MEMORY WILL BE CREATED");
 				int table_name_size;
 				recv(fd, &table_name_size, sizeof(int), 0);
 
 				char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 				recv(fd, table_name, table_name_size, 0);
 				table_name[table_name_size / sizeof(char)] = '\0';
+				table_name = to_upper_string(table_name);
 
 				int consistency, partitions, compaction_time;
 				recv(fd, &consistency, sizeof(int), 0);
@@ -120,6 +122,26 @@ int lfs_server() {
 					send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
 				}
 				break;
+			case MEM_LFS_SELECT:
+				int table_name_size;
+				recv(fd, &table_name_size, sizeof(int), 0);
+
+				char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
+				recv(fd, table_name, table_name_size, 0);
+
+
+				;
+				break;
+			case MEM_LFS_INSERT:
+				;
+				break;
+			case MEM_LFS_DESCRIBE:
+				;
+				break;
+			case MEM_LFS_DROP:
+				;
+				break;
+
 		}
 	}
 	log_info(logger, "Iniciado server de LFS");
