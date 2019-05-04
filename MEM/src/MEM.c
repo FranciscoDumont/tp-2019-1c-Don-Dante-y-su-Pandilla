@@ -36,6 +36,12 @@ void drop_mem(char * table_name);
 void execute_mem(comando_t* unComando);
 void info();
 
+void add_instruction(Instruction i);
+void journal(InstructionList list);
+void delete_instructions(char * table_name);
+int is_drop(Instruction i);
+int empty_list(InstructionList i);
+
 int main(int argc, char **argv) {
 
 	if (argc != 2) {
@@ -167,15 +173,111 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 	//add_instruction(instruction);
 }
 
+int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
+
+	return 1;
+}
+
+char * select_mem(char * table_name, int key){
+
+	return "ok";
+}
+
+void describe_mem(char * table_name){
+
+}
+
+void drop_mem(char * table_name){
+
+}
+
+void journal(InstructionList list){
+
+}
+
 void add_instruction(Instruction i){
-	Instruction *new;
+
+
+	/*
+	if(memoriallena){
+		journal();
+		add_instrucion(i);
+	}else{
+		seguirdelargo
+	}
+	*/
+
+	if(is_drop(i) && first != NULL){
+		delete_instructions(i -> table_name);
+	}
+
+	InstructionList *new;
 	new = malloc(sizeof(Instruction));
-	//new->
+
+	new -> i -> i_type = i -> i_type;
+	new -> i -> table_name = i -> table_name;
+	new -> i-> key = i -> key;
+	new -> i-> value = i -> value;
+	new -> i-> c_type = i -> c_type;
+	new -> i-> partitions = i -> partitions;
+	new -> i-> compaction_time = i -> compaction_time;
+
+	new -> next = NULL;
+
+	if(empty_list(first)){
+		first = new;
+		last = new;
+	}else{
+		last -> next = new;
+		last = new;
+	}
+
 }
 
-void journal(){
+void delete_instructions(char * target_table){
+	InstructionList run = first;
+
+	while(run != NULL){
+		if(run -> i -> table_name == target_table){
+			//unir al anterior con el siguiente
+			run = run -> next;
+		}else{
+			run = run -> next;
+		}
+	}
+	free(run);
 
 }
+
+int is_drop(Instruction i){
+	return (i -> i_type == DROP);
+}
+
+int empty_list(InstructionList i){
+	return (i==NULL);
+}
+
+/*
+
+void show_list(InstructionList list){
+	list * run = first;
+	printf("elements: \n");
+	while(run != NULL){
+		printf(%i - ", run -> i -> i_type);
+		printf(%i - ", run -> i -> table_name);
+		printf(%i - ", run -> i -> key);
+		printf(%i - ", run -> i -> value);
+		printf(%i - ", run -> i -> c_type);
+		printf(%i - ", run -> i -> partitions);
+		printf(%i - ", run -> i -> compaction_time);
+
+		run = run -> next;
+		free(run);
+	}
+
+}
+
+*/
 
 //busca la pagina con el nomre y key y actualiza el valor
 void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp){

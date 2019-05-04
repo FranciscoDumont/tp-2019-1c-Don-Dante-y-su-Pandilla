@@ -155,11 +155,11 @@ typedef enum _InstructionType{
 }InstructionType;
 
 typedef struct _Instruction {
-	InstructionType type;
+	InstructionType i_type;
 	char * table_name;
 	int key;
 	char * value;
-	ConsistencyTypes type;
+	ConsistencyTypes c_type;
 	int partitions;
 	unsigned long compaction_time;
 }Instruction;
