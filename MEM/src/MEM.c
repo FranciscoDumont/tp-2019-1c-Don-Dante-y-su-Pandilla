@@ -180,30 +180,37 @@ void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long time
 	} 
 }
 
-void* get_memoria_libre(int* puntero_a_){
+void* get_memoria_libre(){
 	int i;
 	for (i = 0; i<sizeof(mapa_memoria)/sizeof(mapa_memoria[0]) && mapa_memoria[i] != 0; ++i)
 	{
 
 	}
+	mapa_memoria[i] = 1;
 	return memoria_principal+i*obtener_tamanio_pagina();
 }
 
-pagina_t* crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado){
+void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado){
 	//creo la pagina en mi estructura de paginas
 	pagina_t* nueva_pagina = malloc(sizeof(pagina_t));
 	nueva_pagina->flag_modificado = un_flag_modificado;
 	//luego la pongo en memoria
-	poner_pagina_en_memoria(pa)
+	nueva_pagina->puntero_memoria = get_memoria_libre();
 
+	//se lo asigno al segmento que corresponde
+	segmento_t* segmento_encontrado = find_segmento(nombre_tabla);
+	list_add(segmento_encontrado->paginas,nueva_pagina);
+
+	log_info(logger, "Pagina creada con exito");
 }
-segmento* crear_segmento(char* nombre_tabla){
+
+void crear_segmento(char* nombre_tabla){
 	segmento_t* nuevo_segmento = malloc(sizeof(segmento_t));
 	strcpy(nuevo_segmento->nombre,nombre_tabla);
 	t_list* nueva_lista = list_crete(); 
 	nuevo_segmento->paginas = nueva_lista;
+	log_info(logger, "Segmento creado con exito");
 
-	return nuevo_segmento;
 }
 
 segmento_t* find_segmento(char* segmento_buscado){
