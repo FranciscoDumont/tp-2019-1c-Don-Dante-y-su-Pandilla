@@ -75,11 +75,32 @@ int main(int argc, char **argv) {
 	strcat(memory_logger_path, ".log");
 	logger = log_create(memory_logger_path, "MEM", true, LOG_LEVEL_TRACE);
 
+	config.lfs_socket = create_socket();
+	if (config.lfs_socket != -1 && (connect_socket(config.lfs_socket, config.lfs_ip, config.lfs_port)) == -1) {
+		log_info(logger, "No hay LFS");
+		return EXIT_FAILURE;
+	}
+
+	send_data(config.lfs_socket, HANDSHAKE_MEM_LFS, 0, null);
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.lfs_socket, header);
+	if(header->type == HANDSHAKE_MEM_LFS_OK) {
+		log_info(logger, "LFS ANSWERED SUCCESFULLY");
+		recv(config.lfs_socket, &config.value_size, sizeof(int), 0);
+
+		log_info(logger, "VALUE SIZE RECIEVED %d", config.value_size);
+	} else {
+		log_info(logger, "UNEXPECTED HANDSHAKE RESULT");
+		return EXIT_FAILURE;
+	}
+
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
 
 	pthread_t thread_server;
 	server_start(&thread_server);
+
+	administrar_memoria();
 
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
@@ -95,11 +116,18 @@ int main(int argc, char **argv) {
 	return EXIT_SUCCESS;
 }
 
+int obtener_tamanio_pagina() {
+	return sizeof(unsigned long) +
+			sizeof(int) +
+			config.value_size;
+}
+
 void administrar_memoria(){
 	int cantidad_paginas_actuales = 0;
-	int limite_paginas = config.memsize/sizeof(MemtableKeyReg);
-	int mapa_memoria[limite_paginas] = {0}; //array lleno de 0
+	int limite_paginas = config.memsize / obtener_tamanio_pagina();
+	int mapa_memoria[limite_paginas] = {0}; //array lleno de 0	
 	void* memoria_principal = malloc(config.memsize);
+	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
 }
 
 //TODO: Manejar el tema de timestamp desde la funcion que llama a esta
@@ -152,7 +180,7 @@ void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long time
 	} 
 }
 
-void* get_memoria_libre(){
+void* get_memoria_libre(int* puntero_a_){
 	int i;
 	for (i = 0; i<sizeof(mapa_memoria)/sizeof(mapa_memoria[0]) && mapa_memoria[i] != 0; ++i)
 	{
@@ -161,16 +189,21 @@ void* get_memoria_libre(){
 	return memoria_principal+i*obtener_tamanio_pagina();
 }
 
-pagina_t* crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int flag_modificado){
+pagina_t* crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado){
 	//creo la pagina en mi estructura de paginas
 	pagina_t* nueva_pagina = malloc(sizeof(pagina_t));
-	pagina_t->puntero_memoria = get_memoria_libre();
-	pagina_t->flag_modificado
+	nueva_pagina->flag_modificado = un_flag_modificado;
 	//luego la pongo en memoria
+	poner_pagina_en_memoria(pa)
 
 }
 segmento* crear_segmento(char* nombre_tabla){
+	segmento_t* nuevo_segmento = malloc(sizeof(segmento_t));
+	strcpy(nuevo_segmento->nombre,nombre_tabla);
+	t_list* nueva_lista = list_crete(); 
+	nuevo_segmento->paginas = nueva_lista;
 
+	return nuevo_segmento;
 }
 
 segmento_t* find_segmento(char* segmento_buscado){
