@@ -27,7 +27,26 @@ MutexDebugLevel MUTEX_DEBUG_LEVEL = MX_ONLY_LOCK_UNLOCK;
 
 typedef enum _MessageType {
 	HANDSHAKE_RESPONSE,
-	GOSSIPING_REQUEST
+	GOSSIPING_REQUEST,
+
+	HANDSHAKE_MEM_LFS,
+	HANDSHAKE_MEM_LFS_OK,
+
+	OPERATION_SUCCESS,
+
+	MEM_LFS_CREATE,
+	CREATE_FAILED_EXISTENT_TABLE,
+
+	MEM_LFS_SELECT,
+	SELECT_FAILED_NO_TABLE_SUCH_FOUND,
+
+	MEM_LFS_INSERT,
+
+	MEM_LFS_DESCRIBE,
+	MEM_LFS_NO_TABLES,
+
+	MEM_LFS_DROP
+
 } MessageType;
 
 typedef struct _MessageHeader {
@@ -58,6 +77,7 @@ typedef struct _LFSConfig {
 	int delay;
 	int value_size;
 	int dump_delay;
+	int mysocket;
 } LFSConfig;
 
 typedef struct _LFSMetadata {
@@ -115,6 +135,8 @@ typedef struct _MEMConfig {
 	int gossiping_time;
 	int memory_id;
 	int mysocket;
+	int lfs_socket;
+	int value_size;
 } MEMConfig;
 
 typedef struct _MemPoolData {

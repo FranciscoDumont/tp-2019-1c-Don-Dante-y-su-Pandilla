@@ -41,6 +41,8 @@ void compact(char * table_name);
 void execute_lfs(comando_t* unComando);
 void info();
 
+int lfs_server();
+
 int main(int argc, char **argv) {
 	if (argc != 2) {
 		config_file = config_create("lfs01.cfg");
@@ -60,14 +62,90 @@ int main(int argc, char **argv) {
 
 	up_filesystem();
 
+	pthread_t lfs_server_thread;
+	pthread_create(&lfs_server_thread, NULL, lfs_server, NULL);
+
 	//Consola
 
-	pthread_t lfs_console_id;
-	pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
+	//pthread_t lfs_console_id;
+	//pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
 
-	pthread_join(lfs_console_id,NULL);
+	//pthread_join(lfs_console_id,NULL);
+	pthread_join(lfs_server_thread, NULL);
 
 	return EXIT_SUCCESS;
+}
+
+int lfs_server() {
+	if((config.mysocket = create_socket()) == -1) {
+			return EXIT_FAILURE;
+	}
+	if((bind_socket(config.mysocket, config.port)) == -1) {
+		return EXIT_FAILURE;
+	}
+
+	void new(int fd, char * ip, int port) {
+		log_info(logger, "NEW MEMORY CONNECTED!");
+	}
+	void lost(int fd, char * ip, int port) {
+		log_info(logger, "MEMORY DISCONNECTED", ip, port);
+	}
+	void incoming(int fd, char * ip, int port, MessageHeader * header) {
+		switch(header->type) {
+			case HANDSHAKE_MEM_LFS:
+				;
+				log_info(logger, "FOUND NEW MEMORY IN %s:%d", ip, port);
+				send_data(fd, HANDSHAKE_MEM_LFS_OK, sizeof(int), &config.value_size);
+				break;
+			case MEM_LFS_CREATE:
+				;
+				log_info(logger, "NEW MEMORY WILL BE CREATED");
+				int table_name_size;
+				recv(fd, &table_name_size, sizeof(int), 0);
+
+				char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
+				recv(fd, table_name, table_name_size, 0);
+				table_name[table_name_size / sizeof(char)] = '\0';
+				table_name = to_upper_string(table_name);
+
+				int consistency, partitions, compaction_time;
+				recv(fd, &consistency, sizeof(int), 0);
+				recv(fd, &partitions, sizeof(int), 0);
+				recv(fd, &compaction_time, sizeof(int), 0);
+
+				int op_result;
+				op_result = create_fs(table_name, consistency, partitions, compaction_time);
+
+				if(op_result == true) {
+					send_data(fd, OPERATION_SUCCESS, 0, null);
+				} else {
+					send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
+				}
+				break;
+			case MEM_LFS_SELECT:
+				int table_name_size;
+				recv(fd, &table_name_size, sizeof(int), 0);
+
+				char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
+				recv(fd, table_name, table_name_size, 0);
+
+
+				;
+				break;
+			case MEM_LFS_INSERT:
+				;
+				break;
+			case MEM_LFS_DESCRIBE:
+				;
+				break;
+			case MEM_LFS_DROP:
+				;
+				break;
+
+		}
+	}
+	log_info(logger, "Iniciado server de LFS");
+	start_server(config.mysocket, &new, &lost, &incoming);
 }
 
 char * to_upper_string(char * string) {
