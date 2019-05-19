@@ -167,7 +167,7 @@ typedef struct _Instruction {
 typedef struct _InstructionList{
 	Instruction i;
 
-	InstructionList *next;
+	struct _InstructionList *next;
 }InstructionList;
 
 InstructionList *first = NULL;

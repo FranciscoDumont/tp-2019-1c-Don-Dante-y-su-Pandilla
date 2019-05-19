@@ -36,11 +36,11 @@ void drop_mem(char * table_name);
 void execute_mem(comando_t* unComando);
 void info();
 
-void add_instruction(Instruction i);
+void add_instruction(Instruction* i);
 void journal(InstructionList list);
 void delete_instructions(char * table_name);
-int is_drop(Instruction i);
-int empty_list(InstructionList i);
+int is_drop(Instruction* i);
+int empty_list(InstructionList* i);
 
 int main(int argc, char **argv) {
 
@@ -194,18 +194,18 @@ void drop_mem(char * table_name){
 void journal(InstructionList list){
 
 }
+/*
+void add_instruction(Instruction* i){
 
-void add_instruction(Instruction i){
 
-
-	/*
+	/\*
 	if(memoriallena){
 		journal();
 		add_instrucion(i);
 	}else{
 		seguirdelargo
 	}
-	*/
+	*\/
 
 	if(is_drop(i) && first != NULL){
 		delete_instructions(i -> table_name);
@@ -231,6 +231,7 @@ void add_instruction(Instruction i){
 		last -> next = new;
 		last = new;
 	}
+	return;
 
 }
 
@@ -248,13 +249,14 @@ void delete_instructions(char * target_table){
 	free(run);
 
 }
-
-int is_drop(Instruction i){
+*/
+int is_drop(Instruction* i){
 	return (i -> i_type == DROP);
 }
 
-int empty_list(InstructionList i){
-	return (i==NULL);
+int empty_list(InstructionList* i){
+	//return (i==NULL);
+	return 1;
 }
 
 /*
