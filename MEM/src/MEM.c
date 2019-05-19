@@ -6,7 +6,10 @@ MEMConfig config;
 
 t_list * gossiping_list;
 
-void* memoriaPrincipal;
+void* memoria_principal;
+int* mapa_memoria;
+int cantidad_paginas_actuales;
+int limite_paginas;
 
 t_list* tabla_segmentos;
 
@@ -26,6 +29,24 @@ typedef struct {
 
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
+
+void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado);
+void crear_segmento(char* nombre_tabla);
+segmento_t* find_segmento(char* segmento_buscado);
+pagina_t* find_pagina_en_segmento(int key_buscado,segmento_t* segmento_buscado);
+void set_pagina_timestamp(pagina_t* una_pagina,unsigned long un_timestamp);
+void set_pagina_key(pagina_t* una_pagina,int un_key);
+void set_pagina_value(pagina_t* una_pagina,char* un_value);
+int obtener_tamanio_pagina();
+void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp);
+void sacar_lru();
+int hay_paginas_disponibles();
+int memoria_esta_full();
+int get_pagina_key(pagina_t* una_pagina);
+int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp);
+int existe_segmento(char* );
+int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
+
 
 //TODO: Implementar luego
 int insert_mem(char * table_name, int key, char * value, unsigned long timestamp);
@@ -106,19 +127,23 @@ int main(int argc, char **argv) {
 	pthread_t thread_server;
 	server_start(&thread_server);
 
-	administrar_memoria();
+	//Inicializo las variables globales
+	cantidad_paginas_actuales = 0;
+	limite_paginas = config.memsize / obtener_tamanio_pagina();
+	mapa_memoria = calloc(limite_paginas,sizeof *mapa_memoria);
+	memoria_principal = malloc(config.memsize);
+	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
+
+
 
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
 	
-	pthread_t administrar_memoria_id;
-	pthread_create(&administrar_memoria_id, NULL, administrar_memoria(), NULL);
-
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
 	pthread_join(mem_console_id, NULL);
 
-
+	free(mapa_memoria);
 	return EXIT_SUCCESS;
 }
 
@@ -128,13 +153,7 @@ int obtener_tamanio_pagina() {
 			config.value_size;
 }
 
-void administrar_memoria(){
-	int cantidad_paginas_actuales = 0;
-	int limite_paginas = config.memsize / obtener_tamanio_pagina();
-	int mapa_memoria[limite_paginas] = {0}; //array lleno de 0	
-	void* memoria_principal = malloc(config.memsize);
-	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
-}
+
 
 //TODO: Manejar el tema de timestamp desde la funcion que llama a esta
 int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp) {
@@ -143,7 +162,8 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 	if(existe_segmento(nombre_tabla)){
 	//De existir, busca en sus páginas si contiene la key solicitada y de contenerla actualiza 
 	//el valor insertando el Timestamp actual.
-		if (existe_pagina_en_segmento(key,nombre_tabla)){
+		segmento_t* segmento_por_insertar = find_segmento(nombre_tabla);
+		if (existe_pagina_en_segmento(key,segmento_por_insertar)){
 			actualizar_pagina(nombre_tabla,key,valor,timestamp);
 		} else{
 		//En caso que no contenga la Key, se solicita una nueva página para almacenar la misma.
@@ -284,9 +304,9 @@ void show_list(InstructionList list){
 //busca la pagina con el nomre y key y actualiza el valor
 void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp){
 	segmento_t* segmento_encontrado = find_segmento(nombre_tabla);
-	pagina_t* pagina_encontrada = find_pagina_en_segmento(key,segmento_encontrado)
+	pagina_t* pagina_encontrada = find_pagina_en_segmento(key,segmento_encontrado);
 
-	if(pagina_t){
+	if(pagina_encontrada){
 		set_pagina_timestamp(pagina_encontrada,timestamp);
 		set_pagina_key(pagina_encontrada,key);
 		set_pagina_value(pagina_encontrada,valor);
@@ -322,7 +342,7 @@ void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp
 void crear_segmento(char* nombre_tabla){
 	segmento_t* nuevo_segmento = malloc(sizeof(segmento_t));
 	strcpy(nuevo_segmento->nombre,nombre_tabla);
-	t_list* nueva_lista = list_crete(); 
+	t_list* nueva_lista = list_create();
 	nuevo_segmento->paginas = nueva_lista;
 	log_info(logger, "Segmento creado con exito");
 
@@ -348,17 +368,13 @@ pagina_t* find_pagina_en_segmento(int key_buscado,segmento_t* segmento_buscado){
 	return pagina_encontrada;
 }
 
-int memoria_esta_full(){
-	return cantidad_paginas_actuales >= limite_paginas; 
-}
-
 //dice si existe un segmento con ese nombre
 int existe_segmento(char* segmento_buscado){
 	return find_segmento(segmento_buscado) != NULL;
 }
 //dice si existe una pagina x en el registro y 
-int existe_pagina_en_segmento(int pagina_buscada,segmento_t* segmento_buscado){
-	return find_pagina_en_segmento(pagina_buscada,segmento_buscado) != NULL;
+int existe_pagina_en_segmento(int pagina_key_buscada,segmento_t* segmento_buscado){
+	return find_pagina_en_segmento(pagina_key_buscada,segmento_buscado) != NULL;
 }
 
 void set_pagina_timestamp(pagina_t* una_pagina,unsigned long un_timestamp){
@@ -387,6 +403,41 @@ char get_pagina_value(pagina_t* una_pagina){
 	//TODO: Ver eso de rellenar el char con null si es menor a lo qe pide
 	memcpy(&un_value,(una_pagina->puntero_memoria)+sizeof(unsigned long)+sizeof(int),sizeof(char*));
 	return un_value;
+}
+
+
+int memoria_esta_full(){
+	//la memoria esta full si tiene todas las paginas con flag en 1
+	bool no_esta_modificada(pagina_t* pagina_buscada){
+		return pagina_buscada->flag_modificado == 0;
+	}
+
+	//recorro la lista de segmentos
+	int i=0;
+	segmento_t* un_segmento = list_get(tabla_segmentos,i);
+	while(un_segmento != NULL){
+
+		//si alguna de las paginas del segmento estan sin modificar devuelvo FALSE
+		if(list_any_satisfy(un_segmento->paginas,(void*)no_esta_modificada)){
+			return 0;
+		}
+		//si estan todas llenas cambio de segmento
+		i++;
+		un_segmento = list_get(tabla_segmentos,i);
+	}
+	return 1;
+}
+
+
+int hay_paginas_disponibles(){
+	return cantidad_paginas_actuales <= limite_paginas;
+}
+
+void sacar_lru(){
+	// Esta funcion deberia buscar la pagina que se uso hace mas tiempo
+	// con el flag de modificado en 0
+	// y sacar esa pagina de las paginas
+	return;
 }
 
 //Gossiping
