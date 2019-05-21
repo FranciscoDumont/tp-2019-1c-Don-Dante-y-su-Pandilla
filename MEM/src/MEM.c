@@ -30,6 +30,7 @@ typedef struct {
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
 
+void tests_memoria();
 void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado);
 void crear_segmento(char* nombre_tabla);
 segmento_t* find_segmento(char* segmento_buscado);
@@ -42,7 +43,9 @@ void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long time
 void sacar_lru();
 int hay_paginas_disponibles();
 int memoria_esta_full();
+unsigned long get_pagina_timestamp(pagina_t* una_pagina);
 int get_pagina_key(pagina_t* una_pagina);
+char* get_pagina_value(pagina_t* una_pagina);
 int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp);
 int existe_segmento(char* );
 int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
@@ -134,14 +137,17 @@ int main(int argc, char **argv) {
 	memoria_principal = malloc(config.memsize);
 	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
 
+	//cuidado aca ndeaaa skereeeeeeee
+	pthread_t tests_memoria_id;
+	pthread_create(&tests_memoria_id, NULL,&tests_memoria, NULL);
 
-
-	pthread_t mem_console_id;
-	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
+	//pthread_t mem_console_id;
+	//pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
 	
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
-	pthread_join(mem_console_id, NULL);
+	//pthread_join(mem_console_id, NULL);
+	pthread_join(tests_memoria_id, NULL);
 
 	free(mapa_memoria);
 	return EXIT_SUCCESS;
@@ -157,27 +163,34 @@ int obtener_tamanio_pagina() {
 
 //TODO: Manejar el tema de timestamp desde la funcion que llama a esta
 int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp) {
-
+	log_info(logger, "Inicio insert(%s,%d,%s,%lu)",nombre_tabla,key,valor,timestamp);
 	//Verifica si existe el segmento de la tabla en la memoria principal
 	if(existe_segmento(nombre_tabla)){
+		log_info(logger, "Ya existe el segmento %s",nombre_tabla);
 	//De existir, busca en sus páginas si contiene la key solicitada y de contenerla actualiza 
 	//el valor insertando el Timestamp actual.
 		segmento_t* segmento_por_insertar = find_segmento(nombre_tabla);
 		if (existe_pagina_en_segmento(key,segmento_por_insertar)){
+			log_info(logger, "La pagina ya existia, se va a actualizar");
 			actualizar_pagina(nombre_tabla,key,valor,timestamp);
 		} else{
+			log_info(logger, "La pagina no existia");
 		//En caso que no contenga la Key, se solicita una nueva página para almacenar la misma.
 		//Se deberá tener en cuenta que si no se disponen de páginas libres aplicar el algoritmo de reemplazo 
 		//y en caso de que la memoria se encuentre full iniciar el proceso Journal.
 			if (hay_paginas_disponibles()){
+				log_info(logger, "Hay paginas disponibles, se crea la pagina");
 				crear_pagina(nombre_tabla,key,valor,timestamp,1);
 			}else{
+				log_info(logger, "No hay paginas disponibles:");
 				//todas las paginas estan llenas con o sin modificar
 				if (memoria_esta_full()){
+					log_info(logger, "\tTodas las paginas estan con flag en 1");
 					//hacer el journaling
 					//hacer journal e insertar o solo hacer journal ?? 
 				}else {
 					//algoritmo de reemplazo
+					log_info(logger, "\tHay paginas con el flag en 0, se hace lru");
 					sacar_lru();
 					crear_pagina(nombre_tabla,key,valor,timestamp,1);
 				}
@@ -187,6 +200,7 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 	}else {
 		//si no existe el segmento crear el segmento y llamar recursivamente a insert_mem
 		//deberia verificar con el fileSystem para ver si se puede agregar sin hacer un create antes
+		log_info(logger, "No existia el segmento %s",nombre_tabla);
 		crear_segmento(nombre_tabla);
 		insert_mem(nombre_tabla,key,valor,timestamp);
 	}
@@ -349,6 +363,7 @@ void crear_segmento(char* nombre_tabla){
 }
 
 segmento_t* find_segmento(char* segmento_buscado){
+	log_info(logger, "Se busca el segmento %s",segmento_buscado);
 
 	bool key_search(segmento_t* un_segmento){
 		return strcmp(un_segmento->nombre,segmento_buscado) == 0;
@@ -384,8 +399,12 @@ void set_pagina_key(pagina_t* una_pagina,int un_key){
 	memcpy(una_pagina->puntero_memoria+sizeof(unsigned long),&un_key,sizeof(int));
 }
 void set_pagina_value(pagina_t* una_pagina,char* un_value){
+	if (sizeof(un_value)>config.value_size){
+		log_info(logger,"Error: El valor recibido es mas grande que el config.value_size");
+		return;
+	}
 	//TODO: Ver eso de rellenar el char con null si es menor a lo qe pide
-	memcpy(una_pagina->puntero_memoria+sizeof(unsigned long)+sizeof(int),&un_value,sizeof(char*));
+	memcpy(una_pagina->puntero_memoria+sizeof(unsigned long)+sizeof(int),&un_value,config.value_size);
 }
 
 unsigned long get_pagina_timestamp(pagina_t* una_pagina){
@@ -398,8 +417,8 @@ int get_pagina_key(pagina_t* una_pagina){
 	memcpy(&un_key,una_pagina->puntero_memoria+sizeof(unsigned long),sizeof(int));
 	return un_key;
 }
-char get_pagina_value(pagina_t* una_pagina){
-	char un_value;
+char* get_pagina_value(pagina_t* una_pagina){
+	char* un_value;
 	//TODO: Ver eso de rellenar el char con null si es menor a lo qe pide
 	memcpy(&un_value,(una_pagina->puntero_memoria)+sizeof(unsigned long)+sizeof(int),sizeof(char*));
 	return un_value;
@@ -643,5 +662,30 @@ void execute_mem(comando_t* unComando){
 	}else if (strcmp(comandoPrincipal,"info")==0){
 //		info();
 	}
+}
 
+void tests_memoria(){
+	/* A TESTEAR:
+	void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado);
+	void crear_segmento(char* nombre_tabla);
+	segmento_t* find_segmento(char* segmento_buscado);
+	pagina_t* find_pagina_en_segmento(int key_buscado,segmento_t* segmento_buscado);
+	int obtener_tamanio_pagina();
+	void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp);
+	void sacar_lru();
+	int hay_paginas_disponibles();
+	int memoria_esta_full();
+	int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp);
+	int existe_segmento(char* );
+	int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
+
+	void set_pagina_timestamp(pagina_t* una_pagina,unsigned long un_timestamp);
+	void set_pagina_key(pagina_t* una_pagina,int un_key);
+	void set_pagina_value(pagina_t* una_pagina,char* un_value);
+
+	unsigned long get_pagina_timestamp(pagina_t* una_pagina);
+	int get_pagina_key(pagina_t* una_pagina);
+	char* get_pagina_value(pagina_t* una_pagina);
+	*/
+	insert_mem("A",2,"valor",unix_epoch());
 }
