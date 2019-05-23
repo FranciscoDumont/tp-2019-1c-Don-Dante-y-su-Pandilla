@@ -131,6 +131,7 @@ int main(int argc, char **argv) {
 	server_start(&thread_server);
 
 	//Inicializo las variables globales
+	tabla_segmentos = list_create();
 	cantidad_paginas_actuales = 0;
 	limite_paginas = config.memsize / obtener_tamanio_pagina();
 	mapa_memoria = calloc(limite_paginas,sizeof *mapa_memoria);
@@ -346,6 +347,11 @@ void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp
 	//luego la pongo en memoria
 	nueva_pagina->puntero_memoria = get_memoria_libre();
 
+	//escribo en la memoria
+	set_pagina_key(nueva_pagina,key);
+	set_pagina_value(nueva_pagina,valor);
+	set_pagina_timestamp(nueva_pagina,timestamp);
+
 	//se lo asigno al segmento que corresponde
 	segmento_t* segmento_encontrado = find_segmento(nombre_tabla);
 	list_add(segmento_encontrado->paginas,nueva_pagina);
@@ -355,9 +361,10 @@ void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp
 
 void crear_segmento(char* nombre_tabla){
 	segmento_t* nuevo_segmento = malloc(sizeof(segmento_t));
-	strcpy(nuevo_segmento->nombre,nombre_tabla);
+	nuevo_segmento->nombre = strdup(nombre_tabla);
 	t_list* nueva_lista = list_create();
 	nuevo_segmento->paginas = nueva_lista;
+	list_add(tabla_segmentos,nuevo_segmento);
 	log_info(logger, "Segmento creado con exito");
 
 }
@@ -365,8 +372,8 @@ void crear_segmento(char* nombre_tabla){
 segmento_t* find_segmento(char* segmento_buscado){
 	log_info(logger, "Se busca el segmento %s",segmento_buscado);
 
-	bool key_search(segmento_t* un_segmento){
-		return strcmp(un_segmento->nombre,segmento_buscado) == 0;
+	int key_search(segmento_t* un_segmento){
+		return string_equals_ignore_case(un_segmento->nombre, segmento_buscado);
 	}
 
 	segmento_t* segmento_encontrado = list_find(tabla_segmentos,(void*)key_search);
@@ -375,7 +382,7 @@ segmento_t* find_segmento(char* segmento_buscado){
 
 pagina_t* find_pagina_en_segmento(int key_buscado,segmento_t* segmento_buscado){
 
-	bool key_search(pagina_t* pagina_buscada){
+	int key_search(pagina_t* pagina_buscada){
 		return get_pagina_key(pagina_buscada) == key_buscado;
 	}
 
@@ -427,7 +434,7 @@ char* get_pagina_value(pagina_t* una_pagina){
 
 int memoria_esta_full(){
 	//la memoria esta full si tiene todas las paginas con flag en 1
-	bool no_esta_modificada(pagina_t* pagina_buscada){
+	int no_esta_modificada(pagina_t* pagina_buscada){
 		return pagina_buscada->flag_modificado == 0;
 	}
 
@@ -688,4 +695,8 @@ void tests_memoria(){
 	char* get_pagina_value(pagina_t* una_pagina);
 	*/
 	insert_mem("A",2,"valor",unix_epoch());
+	insert_mem("A",2,"valor",unix_epoch());
+	insert_mem("A",2,"valor",unix_epoch());
+	insert_mem("A",2,"valor",unix_epoch());
+	insert_mem("B",2,"valor",unix_epoch());
 }
