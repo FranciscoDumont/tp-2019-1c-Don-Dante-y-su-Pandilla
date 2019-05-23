@@ -34,8 +34,8 @@ t_list * search_key_in_partitions(char * table_name, int key);
 t_list * search_key_in_temp_files(char * table_name, int key);
 char * select_fs(char * table_name, int key);
 void inform_table_metadata(MemtableTableReg * reg);
-void describe_fs(char * table_name);
-void drop_fs(char * table_name);
+int describe_fs(char * table_name);
+int drop_fs(char * table_name);
 void dump_memtable();
 void compact(char * table_name);
 void execute_lfs(comando_t* unComando);
@@ -133,10 +133,10 @@ int lfs_server() {
 
 
 				char * select_result;
-				int key;
-				recv(fd, &key, sizeof(int), 0);
+				int key_select;
+				recv(fd, &key_select, sizeof(int), 0);
 
-				select_result = select_fs(table_name, key);
+				select_result = select_fs(table_name, key_select);
 
 				if(strcmp(select_result, "UNKNOWN") == 0){
 					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
