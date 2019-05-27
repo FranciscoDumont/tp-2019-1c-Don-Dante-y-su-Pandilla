@@ -164,15 +164,6 @@ typedef struct _Instruction {
 	unsigned long compaction_time;
 }Instruction;
 
-typedef struct _InstructionList{
-	Instruction i;
-
-	struct _InstructionList *next;
-}InstructionList;
-
-InstructionList *first = NULL;
-InstructionList *last = NULL;
-
 //Kernel
 typedef struct _KNLConfig {
 	char * a_memory_ip;

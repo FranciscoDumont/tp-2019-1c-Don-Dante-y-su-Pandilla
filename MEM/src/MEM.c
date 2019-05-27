@@ -25,7 +25,7 @@ typedef struct {
 	int flag_modificado;
 } pagina_t;
 
-
+t_list * instruction_list;
 
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
@@ -56,15 +56,14 @@ int insert_mem(char * table_name, int key, char * value, unsigned long timestamp
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
 char * select_mem(char * table_name, int key);
 int describe_mem(char * table_name);
-void drop_mem(char * table_name);
+int drop_mem(char * table_name);
 void execute_mem(comando_t* unComando);
 void info();
 
 void add_instruction(Instruction* i);
-void journal(InstructionList list);
+void journal(t_list i_list);
 void delete_instructions(char * table_name);
 int is_drop(Instruction* i);
-int empty_list(InstructionList* i);
 
 int main(int argc, char **argv) {
 
@@ -138,6 +137,8 @@ int main(int argc, char **argv) {
 	memoria_principal = malloc(config.memsize);
 	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
 
+	instruction_list = list_create();
+
 	//cuidado aca ndeaaa skereeeeeeee
 	pthread_t tests_memoria_id;
 	pthread_create(&tests_memoria_id, NULL,&tests_memoria, NULL);
@@ -188,7 +189,10 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 				if (memoria_esta_full()){
 					log_info(logger, "\tTodas las paginas estan con flag en 1");
 					//hacer el journaling
-					//hacer journal e insertar o solo hacer journal ?? 
+					//hacer journal e insertar o solo hacer journal ??
+
+					//hacer el journal e insertar
+
 				}else {
 					//algoritmo de reemplazo
 					log_info(logger, "\tHay paginas con el flag en 0, se hace lru");
@@ -205,7 +209,23 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		crear_segmento(nombre_tabla);
 		insert_mem(nombre_tabla,key,valor,timestamp);
 	}
-	//add_instruction(instruction);
+	/*
+	Instruction i;
+	i -> i_type = INSERT;
+
+	//destino, origen
+	strcpy(i -> table_name, nombre_tabla);
+
+	i -> key = key;
+
+	strcpy(i -> value, valor);
+
+	i-> c_type = NULL;
+	i-> partitions = NULL;
+	i-> compaction_time = NULL;
+
+	add_instruction(i);
+	*/
 }
 
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
@@ -232,14 +252,87 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 		exit_value = EXIT_FAILURE;
 	}
 
+	/*
+		Instruction i;
+		i -> i_type = CREATE;
+
+		//destino, origen
+		i -> table_name = NULL;
+
+		i -> key = NULL;
+
+		i -> value = NULL;
+
+		i-> c_type = consistency;
+		i-> partitions = partitions;
+		i-> compaction_time = compaction_time;
+
+		add_instruction(i);
+	*/
+
 	return exit_value;
 }
-
+/*
 char * select_mem(char * table_name, int key){
+
+	if(existe_segmento(table_name)){
+		log_info(logger, "Already exists segment %s", table_name);
+		segmento_t * table_segment = find_segmento(table_name);
+
+		if(existe_pagina_en_segmento(key, table_segment)){
+			log_info(logger, "Page also exists");
+			//log_info(logger, "Value selected: ");
+
+
+			//La memoria tiene los values o no??
+			int exit_value;
+			send_data(config.lfs_socket, MEM_LFS_SELECT, 0, null);
+			int table_name_len = strlen(table_name)+1;
+
+			send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
+			send(config.lfs_socket, table_name,       table_name_len,0);
+
+			send(config.lfs_socket, &key, sizeof(int), 0);
+			send(config.lfs_socket, key, sizeof(int), 0);
+
+			MessageHeader * header = malloc(sizeof(MessageHeader));
+			recieve_header(config.lfs_socket, header);
+			if(header->type == OPERATION_SUCCESS) {
+				log_info(logger, "LFS ANSWERED SUCCESFULLY");
+				exit_value = EXIT_SUCCESS;
+
+				/*
+					Instruction i;
+					i -> i_type = SELECT;
+
+					//destino, origen
+					strcpy(i -> table_name, table_name);
+
+					i -> key = key;
+
+					i -> value = NULL;
+
+					i-> c_type = NULL;
+					i-> partitions = NULL;
+					i-> compaction_time = NULL;
+
+					add_instruction(i);
+				/
+
+			} else {
+				log_info(logger, "SELECT ERROR");
+				exit_value = EXIT_FAILURE;
+			}
+		}else{
+			log_info(logger, "Table page does not exist");
+		}
+	}else{
+		log_info(logger, "Table segment does not exist");
+	}
 
 	return "ok";
 }
-
+*/
 int describe_mem(char * table_name){
 	log_info(logger, "INICIA DESCRIBE: describe_mem(%s)", table_name);
 	int exit_value;
@@ -265,14 +358,78 @@ int describe_mem(char * table_name){
 		exit_value = EXIT_FAILURE;
 	}
 
+	/*
+		Instruction i;
+		i -> i_type = DESCRIBE;
+
+		//destino, origen
+		strcpy(i -> table_name, nombre_tabla);
+
+		i -> key = NULL;
+
+		i -> value = NULL;
+
+		i-> c_type = NULL;
+		i-> partitions = NULL;
+		i-> compaction_time = NULL;
+
+		add_instruction(i);
+	*/
+
 	return exit_value;
 }
+/*
+int drop_mem(char * table_name){
 
-void drop_mem(char * table_name){
+	int exit_value;
 
+	if(existe_segmento(table_name)){
+		log_info(logger, "Segment for table %s found", table_name);
+
+
+		send_data(config.lfs_socket, MEM_LFS_DROP, 0, null);
+		int table_name_len = strlen(table_name)+1;
+
+		send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
+		send(config.lfs_socket, table_name,       table_name_len,0);
+
+		MessageHeader * header = malloc(sizeof(MessageHeader));
+		recieve_header(config.lfs_socket, header);
+		if(header->type == OPERATION_SUCCESS) {
+			log_info(logger, "LFS ANSWERED SUCCESFULLY");
+			log_info(logger, "TABLE HAS BEEN DROPPED");
+			exit_value = EXIT_SUCCESS;
+		} else {
+			log_info(logger, "DROP ERROR");
+			exit_value = EXIT_FAILURE;
+		}
+	}else{
+		log_info(logger, "Segment for table %s not found", table_name);
+		exit_value = EXIT_FAILURE;
+	}
+
+	/*
+	Instruction i;
+	i -> i_type = DROP;
+
+	//destino, origen
+	strcpy(i -> table_name, nombre_tabla);
+
+	i -> key = NULL;
+
+	i -> value = NULL;
+
+	i-> c_type = NULL;
+	i-> partitions = NULL;
+	i-> compaction_time = NULL;
+
+	add_instruction(i);
+	/
+
+	return exit_value;
 }
-
-void journal(InstructionList list){
+*/
+void journal(t_list i_list){
 
 }
 /*
@@ -288,34 +445,18 @@ void add_instruction(Instruction* i){
 	}
 	*\/
 
-	if(is_drop(i) && first != NULL){
+	if(is_drop(i) && instruction_list -> head != NULL){
 		delete_instructions(i -> table_name);
 	}
 
-	InstructionList *new;
-	new = malloc(sizeof(Instruction));
+	list_add(instruction_list, i);
 
-	new -> i -> i_type = i -> i_type;
-	new -> i -> table_name = i -> table_name;
-	new -> i-> key = i -> key;
-	new -> i-> value = i -> value;
-	new -> i-> c_type = i -> c_type;
-	new -> i-> partitions = i -> partitions;
-	new -> i-> compaction_time = i -> compaction_time;
 
-	new -> next = NULL;
-
-	if(empty_list(first)){
-		first = new;
-		last = new;
-	}else{
-		last -> next = new;
-		last = new;
-	}
-	return;
 
 }
+*/
 
+/*
 void delete_instructions(char * target_table){
 	InstructionList run = first;
 
@@ -331,14 +472,11 @@ void delete_instructions(char * target_table){
 
 }
 */
+
 int is_drop(Instruction* i){
 	return (i -> i_type == DROP);
 }
 
-int empty_list(InstructionList* i){
-	//return (i==NULL);
-	return 1;
-}
 
 /*
 
