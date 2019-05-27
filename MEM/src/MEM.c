@@ -20,7 +20,7 @@ typedef struct {
 } segmento_t;
 
 typedef struct {
-	int nro_pagina;
+	int nro_pagina; //corresponde con el indice en el mapa de memorias
 	void* puntero_memoria;
 	int flag_modificado;
 } pagina_t;
@@ -49,6 +49,7 @@ char* get_pagina_value(pagina_t* una_pagina);
 int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp);
 int existe_segmento(char* );
 int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
+void liberar_segmento(char* table_name);
 
 
 //TODO: Implementar luego
@@ -378,9 +379,37 @@ int describe_mem(char * table_name){
 
 	return exit_value;
 }
-/*
-int drop_mem(char * table_name){
 
+int drop_mem(char * table_name){
+	log_info(logger, "INICIA DROP: drop_mem(%s)", table_name);
+	//Verifica si existe un segmento de dicha tabla en la
+	//memoria principal y de haberlo libera dicho espacio.
+	if (existe_segmento(table_name)){
+		liberar_segmento(table_name);
+	}
+	//Informa al FileSystem dicha operación para que este último realice la operación adecuada
+	int exit_value;
+	send_data(config.lfs_socket, MEM_LFS_DROP, 0, null);
+
+	int table_name_len = strlen(table_name)+1;
+
+	send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
+	send(config.lfs_socket, table_name,       table_name_len,0);
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.lfs_socket, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "LFS ANSWERED SUCCESFULLY");
+		log_info(logger, "DROP EN EL FILESYSTEM");
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "DROP ERROR");
+		exit_value = EXIT_FAILURE;
+	}
+
+	return exit_value;
+
+	/*
 	int exit_value;
 
 	if(existe_segmento(table_name)){
@@ -408,6 +437,9 @@ int drop_mem(char * table_name){
 		exit_value = EXIT_FAILURE;
 	}
 
+	return exit_value;
+	*/
+
 	/*
 	Instruction i;
 	i -> i_type = DROP;
@@ -424,11 +456,10 @@ int drop_mem(char * table_name){
 	i-> compaction_time = NULL;
 
 	add_instruction(i);
-	/
+	*/
 
-	return exit_value;
 }
-*/
+
 void journal(t_list i_list){
 
 }
@@ -514,14 +545,18 @@ void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long time
 	} 
 }
 
-void* get_memoria_libre(){
+void get_memoria_libre(pagina_t* una_pagina){
+	//Asigna puntero_memoria y nro_pagina
 	int i;
 	for (i = 0; i<sizeof(mapa_memoria)/sizeof(mapa_memoria[0]) && mapa_memoria[i] != 0; ++i)
 	{
 
 	}
 	mapa_memoria[i] = 1;
-	return memoria_principal+i*obtener_tamanio_pagina();
+	void* nuevo_puntero_a_memoria = memoria_principal+i*obtener_tamanio_pagina();
+
+	una_pagina->puntero_memoria = nuevo_puntero_a_memoria;
+	una_pagina->nro_pagina = i;
 }
 
 void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado){
@@ -529,7 +564,7 @@ void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp
 	pagina_t* nueva_pagina = malloc(sizeof(pagina_t));
 	nueva_pagina->flag_modificado = un_flag_modificado;
 	//luego la pongo en memoria
-	nueva_pagina->puntero_memoria = get_memoria_libre();
+	get_memoria_libre(nueva_pagina);
 
 	//escribo en la memoria
 	set_pagina_key(nueva_pagina,key);
@@ -643,12 +678,35 @@ int hay_paginas_disponibles(){
 	return cantidad_paginas_actuales <= limite_paginas;
 }
 
+
 void sacar_lru(){
 	// Esta funcion deberia buscar la pagina que se uso hace mas tiempo
 	// con el flag de modificado en 0
 	// y sacar esa pagina de las paginas
 	return;
 }
+
+
+void liberar_segmento(char* table_name){
+	segmento_t* segmento = find_segmento(table_name);
+
+	void liberar_pagina(pagina_t* una_pagina){
+		//no borra los datos en memoria, solo deja disponible el indice en el mapa memoria
+		int indice = una_pagina->nro_pagina;
+		mapa_memoria[indice] = 0;
+		free(una_pagina);
+	}
+
+	bool es_el_segmento(segmento_t* s){
+		return string_equals_ignore_case(s->nombre, table_name);
+	}
+
+	list_iterate(segmento->paginas, (void*) liberar_pagina);
+	list_destroy(segmento->paginas);
+	list_remove_by_condition(tabla_segmentos, (void *) es_el_segmento);
+
+}
+
 
 //Gossiping
 void inform_gossiping_pool() {
@@ -883,7 +941,8 @@ void tests_memoria(){
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("B",2,"valor",unix_epoch());
-	//create_mem("C", STRONG_CONSISTENCY, 1, 2);
-	describe_mem(null);
+	create_mem("C", STRONG_CONSISTENCY, 1, 2);
+	//describe_mem(null);
 	//describe_mem("C");
+	drop_mem("C");
 }
