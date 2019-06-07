@@ -55,7 +55,7 @@ int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
 int insert_mem(char * table_name, int key, char * value, unsigned long timestamp);
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
 char * select_mem(char * table_name, int key);
-void describe_mem(char * table_name);
+int describe_mem(char * table_name);
 void drop_mem(char * table_name);
 void execute_mem(comando_t* unComando);
 void info();
@@ -240,8 +240,32 @@ char * select_mem(char * table_name, int key){
 	return "ok";
 }
 
-void describe_mem(char * table_name){
+int describe_mem(char * table_name){
+	log_info(logger, "INICIA DESCRIBE: describe_mem(%s)", table_name);
+	int exit_value;
+	send_data(config.lfs_socket, MEM_LFS_DESCRIBE, 0, null);
 
+	if (table_name != null){
+		int table_name_len = strlen(table_name)+1;
+
+		send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
+		send(config.lfs_socket, table_name,       table_name_len,0);
+	}else{
+		send(config.lfs_socket, 0,  sizeof(int), 0);
+	}
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.lfs_socket, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "LFS ANSWERED SUCCESFULLY");
+		log_info(logger, "DESCRIBE EN EL FILESYSTEM");
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "DESCRIBE ERROR");
+		exit_value = EXIT_FAILURE;
+	}
+
+	return exit_value;
 }
 
 void drop_mem(char * table_name){
@@ -721,5 +745,7 @@ void tests_memoria(){
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("B",2,"valor",unix_epoch());
-	create_mem("C", STRONG_CONSISTENCY, 1, 2);
+	//create_mem("C", STRONG_CONSISTENCY, 1, 2);
+	describe_mem(null);
+	//describe_mem("C");
 }

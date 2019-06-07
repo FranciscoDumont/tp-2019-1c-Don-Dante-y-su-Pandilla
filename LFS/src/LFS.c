@@ -176,10 +176,15 @@ int lfs_server() {
 			case MEM_LFS_DESCRIBE:
 				;
 				//void describe_fs(char * table_name)
+				int describe_result;
 				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
 
-				int describe_result = describe_fs(table_name);
+				if (table_name_size != 0){
+					recv(fd, table_name, table_name_size, 0);
+					describe_result = describe_fs(table_name);
+				}else{
+					describe_result = describe_fs(null);
+				}
 
 				if(describe_result == true){
 					send_data(fd, OPERATION_SUCCESS, 0, null);
@@ -851,7 +856,7 @@ void inform_table_metadata(MemtableTableReg * reg) {
 }
 
 int describe_fs(char * table_name) { //table_name puede ser nulo
-	if(table_name == null) {
+	if(table_name == null || table_name[0] == '\0') {
 		DIR * tables_directory;
 		struct dirent * tables_dirent;
 		char * tables_basedir = generate_tables_basedir();
@@ -904,6 +909,7 @@ int describe_fs(char * table_name) { //table_name puede ser nulo
 		reg->consistency		= char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
 		inform_table_metadata(reg);
+		return true;
 	}
 	return false;
 }
