@@ -209,13 +209,17 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 }
 
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
+	log_info(logger, "INICIA CREAR TABLA: create_mem(%s, %d, %d, %d)", table_name, consistency, partitions, compaction_time);
 	int exit_value;
 	send_data(config.lfs_socket, MEM_LFS_CREATE, 0, null);
 
-	send_data(config.lfs_socket, MEM_LFS_CREATE, sizeof(table_name), table_name);
-	send_data(config.lfs_socket, MEM_LFS_CREATE, sizeof(int), &consistency);
-	send_data(config.lfs_socket, MEM_LFS_CREATE, sizeof(int), &partitions);
-	send_data(config.lfs_socket, MEM_LFS_CREATE, sizeof(int), &compaction_time);
+	int table_name_len = strlen(table_name)+1;
+
+	send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
+	send(config.lfs_socket, table_name,       table_name_len,0);
+	send(config.lfs_socket, &consistency,     sizeof(int), 0);
+	send(config.lfs_socket, &partitions,      sizeof(int), 0);
+	send(config.lfs_socket, &compaction_time, sizeof(int), 0);
 
 	MessageHeader * header = malloc(sizeof(MessageHeader));
 	recieve_header(config.lfs_socket, header);
@@ -224,7 +228,7 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 		log_info(logger, "TABLA CREADA EN EL FILESYSTEM");
 		exit_value = EXIT_SUCCESS;
 	} else {
-		log_info(logger, "UNEXPECTED HANDSHAKE RESULT");
+		log_info(logger, "LFS NO PUDO CREAR LA TABLA");
 		exit_value = EXIT_FAILURE;
 	}
 
@@ -717,4 +721,5 @@ void tests_memoria(){
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("B",2,"valor",unix_epoch());
+	create_mem("C", STRONG_CONSISTENCY, 1, 2);
 }
