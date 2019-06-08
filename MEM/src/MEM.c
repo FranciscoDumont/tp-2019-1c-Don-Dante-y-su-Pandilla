@@ -141,16 +141,16 @@ int main(int argc, char **argv) {
 	instruction_list = list_create();
 
 	//cuidado aca ndeaaa skereeeeeeee
-	pthread_t tests_memoria_id;
-	pthread_create(&tests_memoria_id, NULL,&tests_memoria, NULL);
+	//pthread_t tests_memoria_id;
+	//pthread_create(&tests_memoria_id, NULL,&tests_memoria, NULL);
 
-	//pthread_t mem_console_id;
-	//pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
+	pthread_t mem_console_id;
+	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
 	
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
 	//pthread_join(mem_console_id, NULL);
-	pthread_join(tests_memoria_id, NULL);
+	//pthread_join(tests_memoria_id, NULL);
 
 	free(mapa_memoria);
 	return EXIT_SUCCESS;
@@ -247,6 +247,7 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 	if(header->type == OPERATION_SUCCESS) {
 		log_info(logger, "LFS ANSWERED SUCCESFULLY");
 		log_info(logger, "TABLA CREADA EN EL FILESYSTEM");
+		crear_segmento(table_name);
 		exit_value = EXIT_SUCCESS;
 	} else {
 		log_info(logger, "LFS NO PUDO CREAR LA TABLA");
@@ -716,7 +717,7 @@ void set_pagina_value(pagina_t* una_pagina,char* un_value){
 		return;
 	}
 	//TODO: Ver eso de rellenar el char con null si es menor a lo qe pide
-	memcpy(una_pagina->puntero_memoria+sizeof(unsigned long)+sizeof(int),&un_value,config.value_size);
+	memcpy(una_pagina->puntero_memoria+(sizeof(unsigned long)+sizeof(int)),un_value,config.value_size);
 }
 
 unsigned long get_pagina_timestamp(pagina_t* una_pagina){
@@ -732,7 +733,7 @@ int get_pagina_key(pagina_t* una_pagina){
 char* get_pagina_value(pagina_t* una_pagina){
 	char* un_value;
 	//TODO: Ver eso de rellenar el char con null si es menor a lo qe pide
-	memcpy(&un_value,(una_pagina->puntero_memoria)+sizeof(unsigned long)+sizeof(int),sizeof(char*));
+	memcpy(un_value,(una_pagina->puntero_memoria)+(sizeof(unsigned long)+sizeof(int)),config.value_size);
 	return un_value;
 }
 
@@ -796,7 +797,7 @@ void liberar_segmento(char* table_name){
 
 //Gossiping
 void inform_gossiping_pool() {
-	log_info(logger, "GOSSIPING LIST START");
+	//log_info(logger, "GOSSIPING LIST START");
 
 	int a;
 	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
@@ -804,7 +805,7 @@ void inform_gossiping_pool() {
 		log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
 	}
 
-	log_info(logger, "GOSSIPING LIST END");
+	//log_info(logger, "GOSSIPING LIST END");
 }
 void add_to_pool(MemPoolData * mem) {
 	int a;
@@ -840,11 +841,11 @@ void gossiping_thread() {
 				memsocket = -1;
 			}
 
-			log_info(logger, "requesting to %s %d", this_seed->ip, this_seed->port);
+			//log_info(logger, "requesting to %s %d", this_seed->ip, this_seed->port);
 			if(memsocket != -1) {
 				send_data(memsocket, GOSSIPING_REQUEST, 0, NULL);
 				recv(memsocket, &(this_seed->memory_id), sizeof(int), 0);
-				log_info(logger, "   ITS %d", this_seed->memory_id);
+				//log_info(logger, "   ITS %d", this_seed->memory_id);
 
 				add_to_pool(this_seed);
 
@@ -858,7 +859,7 @@ void gossiping_thread() {
 					recv(memsocket, &this_mem->memory_id, sizeof(int), 0);
 					recv(memsocket, this_mem->ip, sizeof(char) * IP_LENGTH, 0);
 
-					log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
+					//log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
 
 					add_to_pool(this_mem);
 				}
@@ -867,7 +868,7 @@ void gossiping_thread() {
 			close(memsocket);
 
 		}
-		inform_gossiping_pool();
+		//inform_gossiping_pool();
 
 		sleep(config.gossiping_time / 1000);
 	}
@@ -932,7 +933,7 @@ void execute_mem(comando_t* unComando){
 	char parametro4[20];
 	char parametro5[20];
 
-	imprimir_comando(unComando);
+	//imprimir_comando(unComando);
 
 	strcpy(comandoPrincipal,unComando->comando);
 	strcpy(parametro1,unComando->parametro[0]);
@@ -949,7 +950,7 @@ void execute_mem(comando_t* unComando){
 		}else if (parametro2[0] == '\0'){
 			printf("select no recibio la key\n");
 			return;
-		}//else select_mem(parametro1,atoi(parametro2));
+		}else select_mem(parametro1,atoi(parametro2));
 
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
@@ -963,8 +964,8 @@ void execute_mem(comando_t* unComando){
 			printf("insert no recibio el valor\n");
 			return;
 		}else if (parametro4[0] == '\0'){
-//			insert_mem(parametro1,atoi(parametro2),parametro3,unix_epoch());
-		}//else insert_mem(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+			insert_mem(parametro1,atoi(parametro2),parametro3,unix_epoch());
+		}else insert_mem(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
 
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
@@ -980,22 +981,22 @@ void execute_mem(comando_t* unComando){
 		}else if (parametro4[0] == '\0'){
 			printf("create no recibio el tiempo de compactacion\n");
 			return;
-		}//else create_mem(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
+		}else create_mem(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
 	
 	//DESCRIBE
 	}else if (strcmp(comandoPrincipal,"describe")==0){
 		//chekea si parametro es nulo adentro de describe_mem
-//		describe_mem(parametro1);
+		describe_mem(parametro1);
 
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
 			printf("drop no recibio el nombre de la tabla\n");
-		}//else drop_mem(parametro1);
+		}else drop_mem(parametro1);
 
 	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
-//		info();
+		//info();
 	}
 }
 
