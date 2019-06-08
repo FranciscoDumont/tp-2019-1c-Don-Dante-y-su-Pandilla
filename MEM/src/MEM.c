@@ -273,6 +273,84 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 
 	return exit_value;
 }
+
+
+char * select_mem(char * table_name, int key){
+
+	log_info(logger, "Inicio select %s, %d", table_name, key);
+
+	//Buscamos el segmento y verificamos su existencia
+	segmento_t* segmento_buscado = find_segmento(table_name);
+
+	if(segmento_buscado){
+
+		log_info(logger, "El segmento %s existe, buscando key solicitada en las páginas del mismo", table_name);
+	//Si el segmento existe, buscamos la pagina y verificamos que la contenga
+		pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
+
+		if(key_buscada){
+		log_info(logger, "Se encontró la key %d en el segmento %s", key, table_name);
+		char* key_value = get_pagina_value(key_buscada);
+		log_info(logger,"VALOR = %s", key_value);
+		//Si la pagina esta contenida en el segmento, retornamos el valor de la misma.
+		return key_value;
+			} else {
+				//Si no la contiene, envíamos la solicitud a FileSystem para obtener el valor solicitado y almacenarlo. 
+			log_info(logger, "La key %d no está contenida en el segmento %s", key, table_name);
+			log_info(logger, "Enviando petición a LFS...");
+			int exit_value;
+			 
+			send_data(config.lfs_socket, MEM_LFS_SELECT, 0, null);
+			int table_name_len = strlen(table_name)+1;
+
+			send(config.lfs_socket, &table_name_len, sizeof(int), 0);
+			send(config.lfs_socket, table_name, table_name_len,0);
+			send(config.lfs_socket, &key, sizeof(int), 0);
+
+			MessageHeader * header = malloc(sizeof(MessageHeader));
+
+			recieve_header(config.lfs_socket, header);
+			log_info(logger, "LFS RESPONDE");
+				if(header->type == OPERATION_SUCCESS) {
+			
+			log_info(logger, "LFS ENVÍA RESULTADO DE SELECT SOLICITADO");
+			
+				exit_value = EXIT_SUCCESS;
+			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
+			if (hay_paginas_disponibles()){
+				log_info(logger, "Hay páginas disponibles, la página se creará");
+			//	crear_pagina(table_name,key,valor_key,timestamp,1);//valorkey?
+				log_info(logger, "Se devuelve el valor de la pagina");
+			//	pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
+			//	char* key_value = get_pagina_value(key_buscada);
+			//	return key_value;
+			}else{
+				log_info(logger, "No hay páginas disponibles");
+			
+				if (memoria_esta_full()){
+					//Hacer el journal  
+				}else {
+					//ejecutamos el algoritmo de reemplazo
+					log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
+					sacar_lru();
+			//		crear_pagina(table_name,key,valor_key,timestamp,1);
+				}
+			}
+				} else {
+			log_info(logger, "SELECT NO SE PUDO REALIZAR");
+		
+				exit_value = EXIT_FAILURE;
+				}
+
+ } } else{
+		log_info(logger, "El segmento %s no existe", table_name);
+	}
+
+}
+
+	
+
+
 /*
 char * select_mem(char * table_name, int key){
 
@@ -941,6 +1019,9 @@ void tests_memoria(){
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("A",2,"valor",unix_epoch());
 	insert_mem("B",2,"valor",unix_epoch());
+	select_mem("A",2);
+	select_mem("A",3);
+	select_mem("X",2);
 	create_mem("C", STRONG_CONSISTENCY, 1, 2);
 	//describe_mem(null);
 	//describe_mem("C");
