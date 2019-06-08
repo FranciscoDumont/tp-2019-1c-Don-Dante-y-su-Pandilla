@@ -61,16 +61,18 @@ int main(int argc, char **argv) {
 	memtable = list_create();
 
 	up_filesystem();
+	create_fs("A", STRONG_CONSISTENCY, 1, 2);
+	insert_fs("A",3,"valor",unix_epoch());
 
 	pthread_t lfs_server_thread;
 	pthread_create(&lfs_server_thread, NULL, lfs_server, NULL);
 
 	//Consola
 
-	//pthread_t lfs_console_id;
-	//pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
+	pthread_t lfs_console_id;
+	pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
 
-	//pthread_join(lfs_console_id,NULL);
+	pthread_join(lfs_console_id,NULL);
 	pthread_join(lfs_server_thread, NULL);
 
 	return EXIT_SUCCESS;
@@ -142,6 +144,11 @@ int lfs_server() {
 					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 				}else{
 					send_data(fd, OPERATION_SUCCESS, 0, null);
+					int res_len = strlen(select_result) + 1;
+					send(fd, &res_len, sizeof(int), 0);
+					send(fd, select_result, (res_len-1) * sizeof(char), 0);
+					char aosdjaosdoasd = '\0';
+					send(fd, &aosdjaosdoasd, sizeof(char), 0);
 				}
 				//free(select_result)
 				;
@@ -972,6 +979,8 @@ int drop_fs(char * table_name) {
 
 	free(remove_command);
 
+	log_info(logger, "TABLE DROPPED %s", table_name);
+
 	return true;
 }
 
@@ -1200,7 +1209,7 @@ void execute_lfs(comando_t* unComando){
 	char parametro4[20];
 	char parametro5[20];
 
-	imprimir_comando(unComando);
+	//imprimir_comando(unComando);
 
 	strcpy(comandoPrincipal,unComando->comando);
 	strcpy(parametro1,unComando->parametro[0]);
@@ -1217,7 +1226,7 @@ void execute_lfs(comando_t* unComando){
 		}else if (parametro2[0] == '\0'){
 			printf("select no recibio la key\n");
 			return;
-		}else select_fs(parametro1,atoi(parametro2));
+		}else printf("El valor es %s", select_fs(parametro1,atoi(parametro2)));
 
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){

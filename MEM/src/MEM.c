@@ -314,16 +314,24 @@ char * select_mem(char * table_name, int key){
 				if(header->type == OPERATION_SUCCESS) {
 			
 			log_info(logger, "LFS ENVÍA RESULTADO DE SELECT SOLICITADO");
-			
+			int rl;
+			recv(config.lfs_socket, &rl, sizeof(int), 0);
+			char * value = malloc(sizeof(char) * rl);
+			recv(config.lfs_socket, value, sizeof(char) * rl, 0);
+
+			log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
+
 				exit_value = EXIT_SUCCESS;
 			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
 			if (hay_paginas_disponibles()){
 				log_info(logger, "Hay páginas disponibles, la página se creará");
-			//	crear_pagina(table_name,key,valor_key,timestamp,1);//valorkey?
+				unsigned long timestamp;
+				crear_pagina(table_name,key,value,timestamp,1);//valorkey?
+				pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
 				log_info(logger, "Se devuelve el valor de la pagina");
-			//	pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
-			//	char* key_value = get_pagina_value(key_buscada);
-			//	return key_value;
+				char* value = get_pagina_value(key_buscada);
+				log_info(logger, "VALOR= %s", value);
+				return value;
 			}else{
 				log_info(logger, "No hay páginas disponibles");
 			
