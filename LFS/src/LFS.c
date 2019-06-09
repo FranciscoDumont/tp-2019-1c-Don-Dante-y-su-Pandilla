@@ -185,13 +185,9 @@ int lfs_server() {
 				//void describe_fs(char * table_name)
 				int describe_result;
 				recv(fd, &table_name_size, sizeof(int), 0);
+				recv(fd, table_name, table_name_size, 0);
 
-				if (table_name_size != 0){
-					recv(fd, table_name, table_name_size, 0);
-					describe_result = describe_fs(table_name);
-				}else{
-					describe_result = describe_fs(null);
-				}
+				describe_result = describe_fs(table_name);
 
 				if(describe_result == true){
 					send_data(fd, OPERATION_SUCCESS, 0, null);

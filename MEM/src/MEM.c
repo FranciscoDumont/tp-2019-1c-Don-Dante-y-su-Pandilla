@@ -426,14 +426,15 @@ int describe_mem(char * table_name){
 	int exit_value;
 	send_data(config.lfs_socket, MEM_LFS_DESCRIBE, 0, null);
 
-	if (table_name != null){
-		int table_name_len = strlen(table_name)+1;
-
-		send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
-		send(config.lfs_socket, table_name,       table_name_len,0);
-	}else{
-		send(config.lfs_socket, 0,  sizeof(int), 0);
+	if(table_name == null){
+		table_name = strdup("");
 	}
+
+	int table_name_len = strlen(table_name)+1;
+
+	send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
+	send(config.lfs_socket, table_name,       table_name_len,0);
+
 
 	MessageHeader * header = malloc(sizeof(MessageHeader));
 	recieve_header(config.lfs_socket, header);
@@ -1032,7 +1033,8 @@ void tests_memoria(){
 	select_mem("A",3);
 	select_mem("X",2);
 	create_mem("C", STRONG_CONSISTENCY, 1, 2);
-	//describe_mem(null);
+	describe_mem("");
+	describe_mem(null);
 	//describe_mem("C");
-	drop_mem("C");
+	//drop_mem("C");
 }
