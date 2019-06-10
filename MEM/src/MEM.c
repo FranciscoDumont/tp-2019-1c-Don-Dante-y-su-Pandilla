@@ -961,9 +961,7 @@ int server_function() {
 					send_data(fd, OPERATION_SUCCESS, 0, null);
 					int res_len = strlen(select_result) + 1;
 					send(fd, &res_len, sizeof(int), 0);
-					send(fd, select_result, (res_len-1) * sizeof(char), 0);
-					char aux = '\0';
-					send(fd, &aux, sizeof(char), 0);
+					send(fd, select_result, res_len, 0);
 				}
 				//free(select_result)
 				;
@@ -977,17 +975,24 @@ int server_function() {
 				table_name = string_to_upper(table_name);
 
 				int key;
+				int value_len;
 				char * value;
 				unsigned long timestamp;
 				recv(fd, &key, sizeof(int), 0);
-				recv(fd, &value, sizeof(char), 0);
+				recv(fd, &value_len, sizeof(int), 0);
+				recv(fd, value, value_len, 0);
 				recv(fd, &timestamp, sizeof(long), 0);
+				if(value_len > config.value_size){
+					log_error(logger, "El valor recibido(%d) es mas grande que el config.value_size(%d)", value_len, config.value_size);
+					send_data(fd, VALUE_SIZE_ERROR, 0, null);
+					break;
+				}
 
 				int insert_result;
 				insert_result = insert_mem(table_name, key, &value, timestamp);
 
 				if(insert_result == 0){
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					send_data(fd, OPERATION_FAILURE, 0, null);
 				}else{
 					send_data(fd, OPERATION_SUCCESS, 0, null);
 				}

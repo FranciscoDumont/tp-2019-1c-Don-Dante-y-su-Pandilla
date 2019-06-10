@@ -3,6 +3,8 @@
 t_log * logger;
 t_config * config_file = null;
 KNLConfig config;
+int mysocket; //TODO: esto deberia estar en el config de kernel? 🤔
+int port = 6969; //TODO: esto deberia estar en el config de kernel? 🤔
 
 t_list * gossiping_list;
 
@@ -12,9 +14,9 @@ void server_start(pthread_t * thread);
 //TODO: Implementar luego
 int insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
 int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
-char * select_knl(char * table_name, int key);
-void describe_knl(char * table_name);
-void drop_knl(char * table_name);
+int select_knl(char * table_name, int key);
+int describe_knl(char * table_name);
+int drop_knl(char * table_name);
 void execute_knl(comando_t* unComando);
 void info();
 
@@ -39,14 +41,161 @@ int main(int argc, char **argv) {
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
 
+	pthread_t thread_server;
+	server_start(&thread_server);
+
 	pthread_t knl_console_id;
 	pthread_create(&knl_console_id, NULL, crear_consola(execute_knl,"Kernel"), NULL);
 
 	pthread_join(thread_g, NULL);
+	pthread_join(thread_server, NULL);
 	pthread_join(knl_console_id,NULL);
 
 	return EXIT_SUCCESS;
 }
+
+//API
+int insert_knl(char * table_name, int key, char * value, unsigned long timestamp){
+	log_info(logger, "INICIA INSERT: insert_knl(%s, %d, %s, %lu)", table_name, key, value, timestamp);
+	int exit_value;
+	send_data(config.a_memory_ip, KNL_MEM_INSERT, 0, null);
+
+	int table_name_len = strlen(table_name)+1;
+	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
+	send(config.a_memory_ip, table_name,       table_name_len,0);
+
+	send(config.a_memory_ip, &key, sizeof(int), 0);
+
+	int value_len = strlen(value)+1;
+	send(config.a_memory_ip, &value_len,  sizeof(int), 0);
+	send(config.a_memory_ip, value,       value_len,0);
+
+	send(config.a_memory_ip, &timestamp, sizeof(long), 0);
+
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.a_memory_ip, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "MEM ANSWERED SUCCESFULLY");
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "INSERT ERROR");
+		exit_value = EXIT_FAILURE;
+	}
+	return exit_value;
+}
+
+
+int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
+	log_info(logger, "INICIA CREATE: create_knl(%s, %d, %d, %d)", table_name, consistency, partitions, compaction_time);
+	int exit_value;
+	send_data(config.a_memory_ip, KNL_MEM_CREATE, 0, null);
+
+	int table_name_len = strlen(table_name)+1;
+	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
+	send(config.a_memory_ip, table_name,       table_name_len,0);
+
+	send(config.a_memory_ip, &consistency, sizeof(int), 0);
+	send(config.a_memory_ip, &partitions, sizeof(int), 0);
+	send(config.a_memory_ip, &compaction_time, sizeof(int), 0);
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.a_memory_ip, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "MEM ANSWERED SUCCESFULLY");
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "CREATE ERROR");
+		exit_value = EXIT_FAILURE;
+	}
+	return exit_value;
+}
+
+
+int select_knl(char * table_name, int key){
+	log_info(logger, "INICIA SELECT: select_knl(%s, %d)", table_name, key);
+	int exit_value;
+	send_data(config.a_memory_ip, KNL_MEM_DESCRIBE, 0, null);
+
+	int table_name_len = strlen(table_name)+1;
+	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
+	send(config.a_memory_ip, table_name,       table_name_len,0);
+
+	send(config.a_memory_ip, &key, sizeof(int), 0);
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.a_memory_ip, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "MEM ANSWERED SUCCESFULLY");
+		log_info(logger, "MEM ENVÍA RESULTADO DE SELECT SOLICITADO");
+		int result_len;
+		recv(config.a_memory_ip, &result_len, sizeof(int), 0);
+		char* value = malloc(sizeof(char) * result_len);
+		recv(config.a_memory_ip, value, result_len, 0);
+		log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "SELECT ERROR");
+		exit_value = EXIT_FAILURE;
+	}
+	return exit_value;
+}
+
+
+int describe_knl(char * table_name){
+	log_info(logger, "INICIA DESCRIBE: describe_mem(%s)", table_name);
+	int exit_value;
+	send_data(config.a_memory_ip, KNL_MEM_DESCRIBE, 0, null);
+
+	if(table_name == null){
+		table_name = strdup("");
+	}
+
+	int table_name_len = strlen(table_name)+1;
+
+	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
+	send(config.a_memory_ip, table_name,       table_name_len,0);
+
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.a_memory_ip, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "LFS ANSWERED SUCCESFULLY");
+		log_info(logger, "DESCRIBE EN EL FILESYSTEM");
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "DESCRIBE ERROR");
+		exit_value = EXIT_FAILURE;
+	}
+	return exit_value;
+}
+
+
+int drop_knl(char * table_name){
+	log_info(logger, "INICIA DROP: drop_knl(%s)", table_name);
+
+	int exit_value;
+	send_data(config.a_memory_ip, KNL_MEM_DROP, 0, null);
+
+	int table_name_len = strlen(table_name)+1;
+
+	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
+	send(config.a_memory_ip, table_name,       table_name_len,0);
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.a_memory_ip, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "MEM ANSWERED SUCCESFULLY");
+		log_info(logger, "DROP EN EL FILESYSTEM");
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "DROP ERROR");
+		exit_value = EXIT_FAILURE;
+	}
+
+	return exit_value;
+}
+
 
 //Gossiping
 void inform_gossiping_pool() {
@@ -121,6 +270,54 @@ void gossiping_thread() {
 }
 void gossiping_start(pthread_t * thread) {
 	pthread_create(thread, NULL, gossiping_thread, NULL);
+}
+
+//Server
+int server_function() {
+	if((mysocket = create_socket()) == -1) {
+		return EXIT_FAILURE;
+	}
+	if((bind_socket(mysocket, port)) == -1) {
+		return EXIT_FAILURE;
+	}
+
+	void new(int fd, char * ip, int port) {
+
+	}
+	void lost(int fd, char * ip, int port) {
+
+	}
+	void incoming(int fd, char * ip, int port, MessageHeader * header) {
+		switch(header->type) {
+			/*
+			case GOSSIPING_REQUEST:
+				;
+				log_info(logger, "gossiping request");
+				send(fd, &config.memory_id, sizeof(int), 0);
+
+				int gossiping_count = gossiping_list->elements_count;
+				int a;
+				send(fd, &gossiping_count, sizeof(int), 0);
+
+				log_error(logger, "GONNA PASS %d", gossiping_count);
+				for(a = 0 ; a < gossiping_count ; a++) {
+					MemPoolData * this_mem = list_get(gossiping_list, a);
+
+					log_info(logger, "   %d %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
+
+					send(fd, &this_mem->port, sizeof(int), 0);
+					send(fd, &this_mem->memory_id, sizeof(int), 0);
+					send(fd, this_mem->ip, sizeof(char) * IP_LENGTH, 0);
+				}
+
+				break;
+				*/
+		}
+	}
+	start_server(mysocket, &new, &lost, &incoming);
+}
+void server_start(pthread_t * thread) {
+	pthread_create(thread, NULL, server_function, NULL);
 }
 
 //TODO: Completar cuando se tenga la implementacion de las funciones
