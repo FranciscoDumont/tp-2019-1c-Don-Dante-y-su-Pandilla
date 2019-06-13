@@ -355,72 +355,26 @@ char * select_mem(char * table_name, int key){
 		log_info(logger, "El segmento %s no existe", table_name);
 	}
 
+	/*
+	Instruction i;
+	i -> i_type = SELECT;
+
+	//destino, origen
+	strcpy(i -> table_name, table_name);
+
+	i -> key = key;
+
+	i -> value = NULL;
+
+	i-> c_type = NULL;
+	i-> partitions = NULL;
+	i-> compaction_time = NULL;
+
+	add_instruction(i);
+	*/
+
 }
 
-	
-
-
-/*
-char * select_mem(char * table_name, int key){
-
-	if(existe_segmento(table_name)){
-		log_info(logger, "Already exists segment %s", table_name);
-		segmento_t * table_segment = find_segmento(table_name);
-
-		if(existe_pagina_en_segmento(key, table_segment)){
-			log_info(logger, "Page also exists");
-			//log_info(logger, "Value selected: ");
-
-
-			//La memoria tiene los values o no??
-			int exit_value;
-			send_data(config.lfs_socket, MEM_LFS_SELECT, 0, null);
-			int table_name_len = strlen(table_name)+1;
-
-			send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
-			send(config.lfs_socket, table_name,       table_name_len,0);
-
-			send(config.lfs_socket, &key, sizeof(int), 0);
-			send(config.lfs_socket, key, sizeof(int), 0);
-
-			MessageHeader * header = malloc(sizeof(MessageHeader));
-			recieve_header(config.lfs_socket, header);
-			if(header->type == OPERATION_SUCCESS) {
-				log_info(logger, "LFS ANSWERED SUCCESFULLY");
-				exit_value = EXIT_SUCCESS;
-
-				/*
-					Instruction i;
-					i -> i_type = SELECT;
-
-					//destino, origen
-					strcpy(i -> table_name, table_name);
-
-					i -> key = key;
-
-					i -> value = NULL;
-
-					i-> c_type = NULL;
-					i-> partitions = NULL;
-					i-> compaction_time = NULL;
-
-					add_instruction(i);
-				/
-
-			} else {
-				log_info(logger, "SELECT ERROR");
-				exit_value = EXIT_FAILURE;
-			}
-		}else{
-			log_info(logger, "Table page does not exist");
-		}
-	}else{
-		log_info(logger, "Table segment does not exist");
-	}
-
-	return "ok";
-}
-*/
 int describe_mem(char * table_name){
 	log_info(logger, "INICIA DESCRIBE: describe_mem(%s)", table_name);
 	int exit_value;
@@ -498,37 +452,6 @@ int drop_mem(char * table_name){
 	return exit_value;
 
 	/*
-	int exit_value;
-
-	if(existe_segmento(table_name)){
-		log_info(logger, "Segment for table %s found", table_name);
-
-
-		send_data(config.lfs_socket, MEM_LFS_DROP, 0, null);
-		int table_name_len = strlen(table_name)+1;
-
-		send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
-		send(config.lfs_socket, table_name,       table_name_len,0);
-
-		MessageHeader * header = malloc(sizeof(MessageHeader));
-		recieve_header(config.lfs_socket, header);
-		if(header->type == OPERATION_SUCCESS) {
-			log_info(logger, "LFS ANSWERED SUCCESFULLY");
-			log_info(logger, "TABLE HAS BEEN DROPPED");
-			exit_value = EXIT_SUCCESS;
-		} else {
-			log_info(logger, "DROP ERROR");
-			exit_value = EXIT_FAILURE;
-		}
-	}else{
-		log_info(logger, "Segment for table %s not found", table_name);
-		exit_value = EXIT_FAILURE;
-	}
-
-	return exit_value;
-	*/
-
-	/*
 	Instruction i;
 	i -> i_type = DROP;
 
@@ -548,46 +471,46 @@ int drop_mem(char * table_name){
 
 }
 
-void journal(t_list i_list){
-
-}
 /*
-void add_instruction(Instruction* i){
+void journal(){
 
+Verificar cuales paginas fueron modificadas con el bit de modificado
 
-	/\*
-	if(memoriallena){
-		journal();
-		add_instrucion(i);
-	}else{
-		seguirdelargo
-	}
-	*\/
+Ejecutar una por una las peticiones de la memoria al LFS
 
-	if(is_drop(i) && instruction_list -> head != NULL){
-		delete_instructions(i -> table_name);
-	}
-
-	list_add(instruction_list, i);
-
+Limpiar toda la lista de instrucciones a cero de vuelta
 
 
 }
 */
 
 /*
-void delete_instructions(char * target_table){
-	InstructionList run = first;
+void add_instruction(Instruction* i){
 
-	while(run != NULL){
-		if(run -> i -> table_name == target_table){
-			//unir al anterior con el siguiente
-			run = run -> next;
-		}else{
-			run = run -> next;
-		}
+	if(memoria_esta_full()){
+		journal();
+		add_instruction(i);
 	}
-	free(run);
+
+	if(is_drop(i) && !list_is_empty(instruction_list)){
+		delete_instructions(i -> table_name);
+		drop_mem(i -> table_name);
+	}else{
+		list_add(instruction_list, i);
+	}
+
+}
+*/
+
+/*
+void delete_instructions(char * target_table){
+
+	int elements_count = list_size(instruction_list);
+
+	for(int i=0; i<elements_count; i++){
+		if(strcmp(instruction_list[i] -> table_name, target_table) == 0)
+			list_remove_and_destroy_element(instruction_list, i, Instruction);
+	}
 
 }
 */
