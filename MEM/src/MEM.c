@@ -476,6 +476,10 @@ int drop_mem(char * table_name){
 /*
 void journal(){
 
+
+
+
+
 Verificar cuales paginas fueron modificadas con el bit de modificado
 
 Ejecutar una por una las peticiones de la memoria al LFS
@@ -508,10 +512,14 @@ void add_instruction(Instruction* i){
 void delete_instructions(char * target_table){
 
 	int elements_count = list_size(instruction_list);
+	Instruction i = list_get(instruction_list, 1);
+	int step = 1;
 
-	for(int i=0; i<elements_count; i++){
-		if(strcmp(instruction_list[i] -> table_name, target_table) == 0)
+	while(step < elements_count){
+		if(strcmp(i -> table_name, target_table) == 0)
 			list_remove_and_destroy_element(instruction_list, i, Instruction);
+		step++;
+		i = list_get(instruction_list, step);
 	}
 
 }
