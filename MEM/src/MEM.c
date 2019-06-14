@@ -326,7 +326,7 @@ char * select_mem(char * table_name, int key){
 			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
 			if (hay_paginas_disponibles()){
 				log_info(logger, "Hay páginas disponibles, la página se creará");
-				unsigned long timestamp;
+				unsigned long timestamp = unix_epoch();
 				crear_pagina(table_name,key,value,timestamp,1);//valorkey?
 				pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
 				log_info(logger, "Se devuelve el valor de la pagina");
@@ -688,6 +688,24 @@ int hay_paginas_disponibles(){
 	return cantidad_paginas_actuales <= limite_paginas;
 }
 
+void mostrarPaginas(){
+	int size = list_size(tabla_segmentos);
+
+	for(int i=0; i<size; i++){
+		segmento_t * s = list_get(tabla_segmentos, i);
+		int int_cant_pags = list_size(s->paginas);
+		log_info(logger, "segmento %s nro paginas = %d \n", s->nombre, int_cant_pags);
+		for(int x=0; x<int_cant_pags; x++){
+			pagina_t * t = list_get(s->paginas, x);
+			unsigned long ts = get_pagina_timestamp(t);
+			char * valor = get_pagina_value(t);
+			log_info(logger, "pagina %d timestamp %u valor = %s", t->nro_pagina, ts, valor);
+										  }
+										
+
+							 }
+
+					  }
 
 void sacar_lru(){
 	// Esta funcion deberia buscar la pagina que se uso hace mas tiempo
@@ -1062,17 +1080,21 @@ void tests_memoria(){
 	int get_pagina_key(pagina_t* una_pagina);
 	char* get_pagina_value(pagina_t* una_pagina);
 	*/
-	insert_mem("A",2,"valor",unix_epoch());
-	insert_mem("A",2,"valor",unix_epoch());
-	insert_mem("A",2,"valor",unix_epoch());
-	insert_mem("A",2,"valor",unix_epoch());
-	insert_mem("B",2,"valor",unix_epoch());
+	insert_mem("A",1,"valor1",unix_epoch());
+	sleep(5);
+	insert_mem("A",2,"valor2",unix_epoch());
+	sleep(5);
+	insert_mem("A",3,"valor3",unix_epoch());
+	sleep(5);
+	insert_mem("A",4,"valor4",unix_epoch());
+	sleep(5);
+	insert_mem("B",5,"valor5",unix_epoch());
+	select_mem("A",1); 
 	select_mem("A",2);
 	select_mem("A",3);
-	select_mem("X",2);
-	create_mem("C", STRONG_CONSISTENCY, 1, 2);
-	describe_mem("");
-	describe_mem(null);
+	select_mem("A",4);
+	select_mem("B",5);		
+	mostrarPaginas();
 	//describe_mem("C");
 	//drop_mem("C");
 }
