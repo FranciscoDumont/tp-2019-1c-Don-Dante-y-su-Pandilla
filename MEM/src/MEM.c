@@ -8,6 +8,7 @@ t_list * gossiping_list;
 
 void* memoria_principal;
 int* mapa_memoria;
+int mapa_memoria_size;
 int cantidad_paginas_actuales;
 int limite_paginas;
 
@@ -134,7 +135,8 @@ int main(int argc, char **argv) {
 	tabla_segmentos = list_create();
 	cantidad_paginas_actuales = 0;
 	limite_paginas = config.memsize / obtener_tamanio_pagina();
-	mapa_memoria = calloc(limite_paginas,sizeof *mapa_memoria);
+	mapa_memoria_size = limite_paginas;
+	mapa_memoria = calloc(limite_paginas,sizeof(int));
 	memoria_principal = malloc(config.memsize);
 	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
 
@@ -559,11 +561,12 @@ void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long time
 void get_memoria_libre(pagina_t* una_pagina){
 	//Asigna puntero_memoria y nro_pagina
 	int i;
-	for (i = 0; i<sizeof(mapa_memoria)/sizeof(mapa_memoria[0]) && mapa_memoria[i] != 0; ++i)
+	for (i = 0; i<mapa_memoria_size && mapa_memoria[i] != 0; ++i)
 	{
 
 	}
 	mapa_memoria[i] = 1;
+	log_info(logger, "Mapa memoria consigue el indice: %d/%d", i, mapa_memoria_size);
 	void* nuevo_puntero_a_memoria = memoria_principal+i*obtener_tamanio_pagina();
 
 	una_pagina->puntero_memoria = nuevo_puntero_a_memoria;
@@ -1095,6 +1098,24 @@ void tests_memoria(){
 	select_mem("A",4);
 	select_mem("B",5);		
 	mostrarPaginas();
+
+	//Test paginas
+	pagina_t* pagina_test = malloc(sizeof(pagina_t));
+	pagina_test->flag_modificado = 0;
+	get_memoria_libre(pagina_test);
+
+	set_pagina_timestamp(pagina_test, 6969ul);
+	unsigned long ts = get_pagina_timestamp(pagina_test);
+	log_info(logger, "Pagina_timestamp: %lu", ts);
+	
+	set_pagina_key(pagina_test, 808);
+	int k = get_pagina_key(pagina_test);
+	log_info(logger, "Pagina_key: %d", k);
+
+	set_pagina_value(pagina_test, "juega lanus");
+	char* v = get_pagina_value(pagina_test);
+	log_info(logger, "Pagina_value: %s", v);
+
 	//describe_mem("C");
 	//drop_mem("C");
 }
