@@ -1075,10 +1075,6 @@ void tests_memoria(){
 	int existe_segmento(char* );
 	int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
 
-	void set_pagina_timestamp(pagina_t* una_pagina,unsigned long un_timestamp);
-	void set_pagina_key(pagina_t* una_pagina,int un_key);
-	void set_pagina_value(pagina_t* una_pagina,char* un_value);
-
 	unsigned long get_pagina_timestamp(pagina_t* una_pagina);
 	int get_pagina_key(pagina_t* una_pagina);
 	char* get_pagina_value(pagina_t* una_pagina);
@@ -1115,6 +1111,12 @@ void tests_memoria(){
 	set_pagina_value(pagina_test, "juega lanus");
 	char* v = get_pagina_value(pagina_test);
 	log_info(logger, "Pagina_value: %s", v);
+
+	//Test segmentos
+	crear_segmento("un_segmento");
+	segmento_t* s = find_segmento("un_segmento");
+	char* mensaje_segmento = strcmp(s->nombre,"un_segmento")==0 ? "find_segmento: BIEN" : "find_segmento: MAL";
+	log_info(logger, mensaje_segmento);
 
 	//describe_mem("C");
 	//drop_mem("C");
