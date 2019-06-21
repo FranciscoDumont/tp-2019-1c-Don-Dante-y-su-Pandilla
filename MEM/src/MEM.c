@@ -213,23 +213,7 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		crear_segmento(nombre_tabla);
 		insert_mem(nombre_tabla,key,valor,timestamp);
 	}
-	/*
-	Instruction i;
-	i -> i_type = INSERT;
 
-	//destino, origen
-	strcpy(i -> table_name, nombre_tabla);
-
-	i -> key = key;
-
-	strcpy(i -> value, valor);
-
-	i-> c_type = NULL;
-	i-> partitions = NULL;
-	i-> compaction_time = NULL;
-
-	add_instruction(i);
-	*/
 }
 
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
@@ -257,23 +241,6 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 		exit_value = EXIT_FAILURE;
 	}
 
-	/*
-		Instruction i;
-		i -> i_type = CREATE;
-
-		//destino, origen
-		i -> table_name = NULL;
-
-		i -> key = NULL;
-
-		i -> value = NULL;
-
-		i-> c_type = consistency;
-		i-> partitions = partitions;
-		i-> compaction_time = compaction_time;
-
-		add_instruction(i);
-	*/
 
 	return exit_value;
 }
@@ -358,23 +325,6 @@ char * select_mem(char * table_name, int key){
 		log_info(logger, "El segmento %s no existe", table_name);
 	}
 
-	/*
-	Instruction i;
-	i -> i_type = SELECT;
-
-	//destino, origen
-	strcpy(i -> table_name, table_name);
-
-	i -> key = key;
-
-	i -> value = NULL;
-
-	i-> c_type = NULL;
-	i-> partitions = NULL;
-	i-> compaction_time = NULL;
-
-	add_instruction(i);
-	*/
 
 }
 
@@ -404,23 +354,6 @@ int describe_mem(char * table_name){
 		exit_value = EXIT_FAILURE;
 	}
 
-	/*
-		Instruction i;
-		i -> i_type = DESCRIBE;
-
-		//destino, origen
-		strcpy(i -> table_name, nombre_tabla);
-
-		i -> key = NULL;
-
-		i -> value = NULL;
-
-		i-> c_type = NULL;
-		i-> partitions = NULL;
-		i-> compaction_time = NULL;
-
-		add_instruction(i);
-	*/
 
 	return exit_value;
 }
@@ -454,42 +387,80 @@ int drop_mem(char * table_name){
 
 	return exit_value;
 
-	/*
-	Instruction i;
-	i -> i_type = DROP;
-
-	//destino, origen
-	strcpy(i -> table_name, nombre_tabla);
-
-	i -> key = NULL;
-
-	i -> value = NULL;
-
-	i-> c_type = NULL;
-	i-> partitions = NULL;
-	i-> compaction_time = NULL;
-
-	add_instruction(i);
-	*/
 
 }
 
+// instruction_list es una variable global
 /*
 void journal(){
 
+	int elements_count = list_size(instruction_list);
+	Instruction i = list_get(instruction_list, 1);
+	int step = 1;
 
+	while(step < elements_count){
+		if(modified_page(i -> table_name, i->key)){
+			switch(i -> i_type){
+				case INSERT:
+					insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+					break;
+				case CREATE:
+				 	create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
+				 	break;
+			}
+		} else {
+			switch(i -> i_type){
+				case SELECT:
+					select_mem(i -> table_name, i -> key);
+					break;
+				case DESCRIBE:
+					describe_mem(i -> table_name);
+					break;
+			}
+		}
+		step++;
+		i = list_get(instruction_list, step);
+	}
 
-
-
-Verificar cuales paginas fueron modificadas con el bit de modificado
-
-Ejecutar una por una las peticiones de la memoria al LFS
-
-Limpiar toda la lista de instrucciones a cero de vuelta
-
+	free_tables(instruction_list);
+	list_clean(instruction_list);
 
 }
+
 */
+
+
+/*
+int modified_page(char * table_name, int key){
+
+	segmento_t aux_segment = find_segmento(table_name);
+	pagina_t aux_page = find_pagina_en_segmento(key, aux_segment);
+
+	return aux_page -> flag_modificado;
+}
+
+*/
+
+/*
+
+void free_tables(t_list instruction_list){
+
+	int elements_count = list_size(instruction_list);
+	Instruction i = list_get(instruction_list, 1);
+	int step = 1;
+
+	while(step < elements_count){
+
+		liberar_segmento(i -> table_name);
+
+		step++;
+		i = list_get(instruction_list, step);
+	}
+
+}
+
+*/
+
 
 /*
 void add_instruction(Instruction* i){
@@ -1017,6 +988,8 @@ void execute_mem(comando_t* unComando){
 	strcpy(parametro4,unComando->parametro[3]);
 	strcpy(parametro5,unComando->parametro[4]);
 
+	//Instruction i;
+
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
 		if(parametro1[0] == '\0'){
@@ -1025,7 +998,26 @@ void execute_mem(comando_t* unComando){
 		}else if (parametro2[0] == '\0'){
 			printf("select no recibio la key\n");
 			return;
-		}else select_mem(parametro1,atoi(parametro2));
+		}else{
+			/*
+			i -> i_type = SELECT;
+
+			//destino, origen
+			strcpy(i -> table_name, table_name);
+
+
+			i -> key = key;
+
+			i -> value = NULL;
+
+			i-> c_type = NULL;
+			i-> partitions = NULL;
+			i-> compaction_time = NULL;
+
+			add_instruction(i);
+			*/
+			select_mem(parametro1,atoi(parametro2));
+		}
 
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
@@ -1040,7 +1032,27 @@ void execute_mem(comando_t* unComando){
 			return;
 		}else if (parametro4[0] == '\0'){
 			insert_mem(parametro1,atoi(parametro2),parametro3,unix_epoch());
-		}else insert_mem(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+		}else {
+
+			/*
+			i -> i_type = INSERT;
+
+			//destino, origen
+			strcpy(i -> table_name, nombre_tabla);
+
+			i -> key = key;
+
+			strcpy(i -> value, valor);
+
+			i-> c_type = NULL;
+			i-> partitions = NULL;
+			i-> compaction_time = NULL;
+
+			add_instruction(i);
+			*/
+
+			insert_mem(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+		}
 
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
@@ -1056,11 +1068,49 @@ void execute_mem(comando_t* unComando){
 		}else if (parametro4[0] == '\0'){
 			printf("create no recibio el tiempo de compactacion\n");
 			return;
-		}else create_mem(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
+		}else {
+
+			/*
+			i -> i_type = CREATE;
+
+			//destino, origen
+			i -> table_name = NULL;
+
+			i -> key = NULL;
+
+			i -> value = NULL;
+
+			i-> c_type = consistency;
+			i-> partitions = partitions;
+			i-> compaction_time = compaction_time;
+
+			add_instruction(i);
+			*/
+
+			create_mem(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
+		}
 	
 	//DESCRIBE
 	}else if (strcmp(comandoPrincipal,"describe")==0){
 		//chekea si parametro es nulo adentro de describe_mem
+
+		/*
+		i -> i_type = DESCRIBE;
+
+		//destino, origen
+		strcpy(i -> table_name, nombre_tabla);
+
+		i -> key = NULL;
+
+		i -> value = NULL;
+
+		i-> c_type = NULL;
+		i-> partitions = NULL;
+		i-> compaction_time = NULL;
+
+		add_instruction(i);
+		*/
+
 		describe_mem(parametro1);
 
 	//DROP
@@ -1069,15 +1119,35 @@ void execute_mem(comando_t* unComando){
 			printf("drop no recibio el nombre de la tabla\n");
 		}else drop_mem(parametro1);
 
+		//ESTE NO SE JOURNALEA
+
+		/*
+		i -> i_type = DROP;
+
+		//destino, origen
+		strcpy(i -> table_name, nombre_tabla);
+
+		i -> key = NULL;
+
+		i -> value = NULL;
+
+		i-> c_type = NULL;
+		i-> partitions = NULL;
+		i-> compaction_time = NULL;
+
+		add_instruction(i);
+		*/
+
+
 	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		//info();
-
+	}else if (strcmp(comandoPrincipal,"journal")==0){
+		//journal();
 	//EXIT
 	}else if (strcmp(comandoPrincipal,"exit")==0){
 		send_data(config.mysocket, EXIT, 0, null);
 	}
-
 }
 
 void tests_memoria(){

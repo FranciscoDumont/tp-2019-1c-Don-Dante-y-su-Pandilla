@@ -161,7 +161,7 @@ typedef struct _MemPoolData {
 typedef enum _InstructionType{
 	SELECT,
 	INSERT,
-	CRETAE,
+	CREATE,
 	DESCRIBE,
 	DROP,
 	JOURNAL
