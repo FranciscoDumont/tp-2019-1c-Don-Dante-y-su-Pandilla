@@ -446,6 +446,11 @@ void cargar_comando(comando_t* unComando, char* linea){
 	int indice = 0;
 	char* saveptr;
 
+	if (linea && !linea[0]) {
+	  printf("linea is empty\n");
+	  strcpy(linea, "exit");
+	}
+
 	char *ptr = strtok_r(linea, delim,&saveptr);
 
 	strcpy(unComando->comando, ptr);
@@ -498,9 +503,10 @@ void * crear_consola(void (*execute)(comando_t*),char* unString) {
 		vaciar_comando(&comando);
 		cargar_comando(&comando,linea);
 
-		if((strcmp(comando.comando,"exit")!=0)){
-			(*execute)(&comando);
-		}else quit = 1;
+		if((strcmp(comando.comando,"exit")==0)){
+			quit = 1;
+		}
+		(*execute)(&comando);
 
 		free(linea);
 	}

@@ -51,6 +51,7 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 int existe_segmento(char* );
 int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
 void liberar_segmento(char* table_name);
+void consola_mem();
 
 
 //TODO: Implementar luego
@@ -147,12 +148,12 @@ int main(int argc, char **argv) {
 	pthread_create(&tests_memoria_id, NULL,&tests_memoria, NULL);
 
 	pthread_t mem_console_id;
-	pthread_create(&mem_console_id, NULL, crear_consola(execute_mem,"Memoria"), NULL);
+	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
 	
+	pthread_join(tests_memoria_id, NULL);
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
 	pthread_join(mem_console_id, NULL);
-	pthread_join(tests_memoria_id, NULL);
 
 	free(mapa_memoria);
 	return EXIT_SUCCESS;
@@ -982,7 +983,10 @@ int server_function() {
 				}
 
 				break;
-
+			case EXIT:
+				;
+				return;
+				break;
 		}
 	}
 	start_server(config.mysocket, &new, &lost, &incoming);
@@ -991,6 +995,9 @@ void server_start(pthread_t * thread) {
 	pthread_create(thread, NULL, server_function, NULL);
 }
 
+void consola_mem(){
+	crear_consola(execute_mem, "Memoria");
+}
 
 //TODO: Completar cuando se tenga la implementacion de las funciones
 void execute_mem(comando_t* unComando){
@@ -1065,7 +1072,12 @@ void execute_mem(comando_t* unComando){
 	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		//info();
+
+	//EXIT
+	}else if (strcmp(comandoPrincipal,"exit")==0){
+		send_data(config.mysocket, EXIT, 0, null);
 	}
+
 }
 
 void tests_memoria(){
@@ -1088,13 +1100,9 @@ void tests_memoria(){
 	char* get_pagina_value(pagina_t* una_pagina);
 	*/
 	insert_mem("A",1,"valor1",unix_epoch());
-	sleep(5);
 	insert_mem("A",2,"valor2",unix_epoch());
-	sleep(5);
 	insert_mem("A",3,"valor3",unix_epoch());
-	sleep(5);
 	insert_mem("A",4,"valor4",unix_epoch());
-	sleep(5);
 	insert_mem("B",5,"valor5",unix_epoch());
 	select_mem("A",1); 
 	select_mem("A",2);

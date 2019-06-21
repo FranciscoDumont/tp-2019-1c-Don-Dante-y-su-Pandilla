@@ -40,6 +40,7 @@ void dump_memtable();
 void compact(char * table_name);
 void execute_lfs(comando_t* unComando);
 void info();
+void consola_lfs();
 
 int lfs_server();
 
@@ -70,7 +71,7 @@ int main(int argc, char **argv) {
 	//Consola
 
 	pthread_t lfs_console_id;
-	pthread_create(&lfs_console_id, NULL, crear_consola(execute_lfs,"Lisandra File System"), NULL);
+	pthread_create(&lfs_console_id, NULL, consola_lfs, NULL);
 
 	pthread_join(lfs_console_id,NULL);
 	pthread_join(lfs_server_thread, NULL);
@@ -1195,7 +1196,9 @@ void compact(char * table_name) {
 }
 
 
-
+void consola_lfs(){
+	crear_consola(execute_lfs, "Lissandra File System");
+}
 
 void execute_lfs(comando_t* unComando){
 	char comandoPrincipal[20];

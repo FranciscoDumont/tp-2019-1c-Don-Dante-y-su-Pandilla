@@ -19,6 +19,7 @@ int describe_knl(char * table_name);
 int drop_knl(char * table_name);
 void execute_knl(comando_t* unComando);
 void info();
+void consola_knl();
 
 int main(int argc, char **argv) {
 	if (argc != 2) {
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
 	server_start(&thread_server);
 
 	pthread_t knl_console_id;
-	pthread_create(&knl_console_id, NULL, crear_consola(execute_knl,"Kernel"), NULL);
+	pthread_create(&knl_console_id, NULL, consola_knl, NULL);
 
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
@@ -318,6 +319,10 @@ int server_function() {
 }
 void server_start(pthread_t * thread) {
 	pthread_create(thread, NULL, server_function, NULL);
+}
+
+void consola_knl(){
+	crear_consola(execute_knl, "Kernel");
 }
 
 //TODO: Completar cuando se tenga la implementacion de las funciones
