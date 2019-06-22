@@ -412,7 +412,18 @@ char * get_thread_name(int tid) {
 
 
 unsigned long unix_epoch() {
-	return (unsigned)time(NULL);
+
+	struct timeval tv;
+	time_t seconds;
+	gettimeofday(&tv, NULL);
+	unsigned long long miliseconds_since_epoch = (unsigned long long)((unsigned long long)(tv.tv_sec) * (unsigned long long)1000 + (unsigned long long)(tv.tv_usec) / (unsigned long long)1000);
+
+	seconds = time(NULL);
+	int days_since_epoch = seconds/(60*60*24);
+	unsigned long long midnight_miliseconds_since_epoch = (unsigned long long)days_since_epoch*(24*60*60*1000);
+
+	unsigned long miliseconds_since_midnight = (unsigned long)(miliseconds_since_epoch - midnight_miliseconds_since_epoch);
+	return miliseconds_since_midnight;
 }
 
 char * consistency_to_char(ConsistencyTypes consistency) {
