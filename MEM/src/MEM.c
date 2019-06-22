@@ -64,9 +64,12 @@ void execute_mem(comando_t* unComando);
 void info();
 
 void add_instruction(Instruction* i);
-void journal(t_list i_list);
+void journal();
 void delete_instructions(char * table_name);
+int modified_page(char * table_name, int key);
 int is_drop(Instruction* i);
+void free_tables();
+
 
 int main(int argc, char **argv) {
 
@@ -391,18 +394,25 @@ int drop_mem(char * table_name){
 }
 
 // instruction_list es una variable global
-/*
+
 void journal(){
 
 	int elements_count = list_size(instruction_list);
-	Instruction i = list_get(instruction_list, 1);
+	Instruction * i;
+	i = list_get(instruction_list, 1);
 	int step = 1;
 
 	while(step < elements_count){
 		if(modified_page(i -> table_name, i->key)){
 			switch(i -> i_type){
 				case INSERT:
-					insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+					if(!existe_segmento(i -> table_name)){
+						log_info(logger, "Non existent table %s. It will be created...", i -> table_name);
+						create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
+						insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+					} else {
+						insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+					}
 					break;
 				case CREATE:
 				 	create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
@@ -424,29 +434,25 @@ void journal(){
 
 	free_tables(instruction_list);
 	list_clean(instruction_list);
+	//free(i);
 
 }
 
-*/
 
-
-/*
 int modified_page(char * table_name, int key){
 
-	segmento_t aux_segment = find_segmento(table_name);
-	pagina_t aux_page = find_pagina_en_segmento(key, aux_segment);
+	segmento_t * aux_segment = find_segmento(table_name);
+	pagina_t * aux_page = find_pagina_en_segmento(key, aux_segment);
 
 	return aux_page -> flag_modificado;
 }
 
-*/
 
-/*
-
-void free_tables(t_list instruction_list){
+void free_tables(){
 
 	int elements_count = list_size(instruction_list);
-	Instruction i = list_get(instruction_list, 1);
+	Instruction * i;
+	i = list_get(instruction_list, 1);
 	int step = 1;
 
 	while(step < elements_count){
@@ -457,12 +463,11 @@ void free_tables(t_list instruction_list){
 		i = list_get(instruction_list, step);
 	}
 
+	//free(i);
+
 }
 
-*/
 
-
-/*
 void add_instruction(Instruction* i){
 
 	if(memoria_esta_full()){
@@ -473,29 +478,33 @@ void add_instruction(Instruction* i){
 	if(is_drop(i) && !list_is_empty(instruction_list)){
 		delete_instructions(i -> table_name);
 		drop_mem(i -> table_name);
+	}else if(is_drop(i) && list_is_empty(instruction_list)){
+		drop_mem(i -> table_name);
 	}else{
 		list_add(instruction_list, i);
 	}
 
 }
-*/
 
-/*
+
 void delete_instructions(char * target_table){
 
 	int elements_count = list_size(instruction_list);
-	Instruction i = list_get(instruction_list, 1);
+	Instruction * i;
+	i = list_get(instruction_list, 1);
 	int step = 1;
 
 	while(step < elements_count){
 		if(strcmp(i -> table_name, target_table) == 0)
-			list_remove_and_destroy_element(instruction_list, i, Instruction);
+			list_remove(instruction_list, i);
 		step++;
 		i = list_get(instruction_list, step);
 	}
 
+	//free(i);
+
 }
-*/
+
 
 int is_drop(Instruction* i){
 	return (i -> i_type == DROP);
@@ -988,7 +997,7 @@ void execute_mem(comando_t* unComando){
 	strcpy(parametro4,unComando->parametro[3]);
 	strcpy(parametro5,unComando->parametro[4]);
 
-	//Instruction i;
+	//Instruction * i;
 
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
@@ -999,6 +1008,7 @@ void execute_mem(comando_t* unComando){
 			printf("select no recibio la key\n");
 			return;
 		}else{
+
 			/*
 			i -> i_type = SELECT;
 
@@ -1016,6 +1026,7 @@ void execute_mem(comando_t* unComando){
 
 			add_instruction(i);
 			*/
+
 			select_mem(parametro1,atoi(parametro2));
 		}
 
