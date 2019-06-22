@@ -73,8 +73,8 @@ int main(int argc, char **argv) {
 	pthread_t lfs_console_id;
 	pthread_create(&lfs_console_id, NULL, consola_lfs, NULL);
 
-	pthread_join(lfs_console_id,NULL);
-	pthread_join(lfs_server_thread, NULL);
+	pthread_detach(lfs_server_thread);
+	pthread_join(lfs_console_id, NULL);
 
 	return EXIT_SUCCESS;
 }

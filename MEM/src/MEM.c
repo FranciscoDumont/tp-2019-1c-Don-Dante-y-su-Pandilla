@@ -147,15 +147,13 @@ int main(int argc, char **argv) {
 	instruction_list = list_create();
 
 	//cuidado aca ndeaaa skereeeeeeee
-	pthread_t tests_memoria_id;
-	pthread_create(&tests_memoria_id, NULL,&tests_memoria, NULL);
+	tests_memoria();
 
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
 	
-	pthread_join(tests_memoria_id, NULL);
-	pthread_join(thread_g, NULL);
-	pthread_join(thread_server, NULL);
+	pthread_detach(thread_g);
+	pthread_detach(thread_server);
 	pthread_join(mem_console_id, NULL);
 
 	free(mapa_memoria);

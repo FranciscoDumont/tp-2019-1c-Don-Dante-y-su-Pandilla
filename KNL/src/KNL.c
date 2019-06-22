@@ -48,9 +48,9 @@ int main(int argc, char **argv) {
 	pthread_t knl_console_id;
 	pthread_create(&knl_console_id, NULL, consola_knl, NULL);
 
-	pthread_join(thread_g, NULL);
-	pthread_join(thread_server, NULL);
-	pthread_join(knl_console_id,NULL);
+	pthread_detach(thread_g);
+	pthread_detach(thread_server);
+	pthread_join(knl_console_id, NULL);
 
 	return EXIT_SUCCESS;
 }
