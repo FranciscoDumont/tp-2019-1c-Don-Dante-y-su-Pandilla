@@ -961,10 +961,6 @@ int server_function() {
 				}
 
 				break;
-			case EXIT:
-				;
-				return;
-				break;
 		}
 	}
 	start_server(config.mysocket, &new, &lost, &incoming);
@@ -1153,9 +1149,6 @@ void execute_mem(comando_t* unComando){
 		//info();
 	}else if (strcmp(comandoPrincipal,"journal")==0){
 		//journal();
-	//EXIT
-	}else if (strcmp(comandoPrincipal,"exit")==0){
-		send_data(config.mysocket, EXIT, 0, null);
 	}
 }
 
