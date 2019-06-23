@@ -24,6 +24,7 @@ typedef struct {
 	int nro_pagina; //corresponde con el indice en el mapa de memorias
 	void* puntero_memoria;
 	int flag_modificado;
+	unsigned long timestamp_ultima_modificacion;
 } pagina_t;
 
 t_list * instruction_list;
@@ -69,6 +70,10 @@ void delete_instructions(char * table_name);
 int modified_page(char * table_name, int key);
 int is_drop(Instruction* i);
 void free_tables();
+
+
+void set_pagina_timestamp_modificado(pagina_t * p, unsigned long timestamp_modificacion);
+void mostrarPaginas();
 
 
 int main(int argc, char **argv) {
@@ -634,6 +639,10 @@ void set_pagina_value(pagina_t* una_pagina,char* un_value){
 	memcpy(una_pagina->puntero_memoria+(sizeof(unsigned long)+sizeof(int)),un_value,config.value_size);
 }
 
+void set_pagina_timestamp_modificado(pagina_t * una_pagina, unsigned long un_timestamp_modificado){
+	memcpy(una_pagina->puntero_memoria+sizeof(unsigned long)+sizeof(int)+config.value_size,&un_timestamp_modificado,sizeof(unsigned long));  
+}
+
 unsigned long get_pagina_timestamp(pagina_t* una_pagina){
 	unsigned long un_timestamp;
 	memcpy(&un_timestamp,una_pagina->puntero_memoria,sizeof(unsigned long));
@@ -649,6 +658,13 @@ char* get_pagina_value(pagina_t* una_pagina){
 	un_value = strdup((una_pagina->puntero_memoria)+(sizeof(unsigned long)+sizeof(int)));
 	return un_value;
 }
+
+unsigned long get_pagina_timestamp_modificado(pagina_t* una_pagina){
+	unsigned long un_timestamp_modificado;
+	memcpy(&un_timestamp_modificado,una_pagina->puntero_memoria+sizeof(unsigned long)+sizeof(int)+config.value_size,sizeof(unsigned long));
+	return un_timestamp_modificado;
+}
+
 
 
 int memoria_esta_full(){
