@@ -400,15 +400,19 @@ int drop_mem(char * table_name){
 
 void journal(){
 
+	log_info(logger, "Se inicia el JOURNAL");
 	int elements_count = list_size(instruction_list);
+	log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
 	Instruction * i;
-	i = list_get(instruction_list, 1);
+	i = list_get(instruction_list, 0);
 	int step = 1;
 
-	while(step < elements_count){
+	while(step <= elements_count){
+		log_info(logger, "J\tPaso %d de %d", step, elements_count);
 		if(modified_page(i -> table_name, i->key)){
 			switch(i -> i_type){
 				case INSERT:
+					log_info(logger, "J\tEs un INSERT");
 					if(!existe_segmento(i -> table_name)){
 						log_info(logger, "Non existent table %s. It will be created...", i -> table_name);
 						create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
@@ -418,26 +422,28 @@ void journal(){
 					}
 					break;
 				case CREATE:
+					log_info(logger, "J\tEs un CREATE");
 				 	create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
 				 	break;
 			}
 		} else {
 			switch(i -> i_type){
 				case SELECT:
+					log_info(logger, "J\tEs un SELECT");
 					select_mem(i -> table_name, i -> key);
 					break;
 				case DESCRIBE:
+					log_info(logger, "J\tEs un DESCRIBE");
 					describe_mem(i -> table_name);
 					break;
 			}
 		}
-		step++;
 		i = list_get(instruction_list, step);
+		step++;
 	}
 
 	free_tables(instruction_list);
 	list_clean(instruction_list);
-	//free(i);
 
 }
 
@@ -455,18 +461,16 @@ void free_tables(){
 
 	int elements_count = list_size(instruction_list);
 	Instruction * i;
-	i = list_get(instruction_list, 1);
+	i = list_get(instruction_list, 0);
 	int step = 1;
 
-	while(step < elements_count){
+	while(step <= elements_count){
 
 		liberar_segmento(i -> table_name);
 
-		step++;
 		i = list_get(instruction_list, step);
+		step++;
 	}
-
-	//free(i);
 
 }
 
@@ -1221,6 +1225,9 @@ void tests_memoria(){
 	segmento_t* s = find_segmento("un_segmento");
 	char* mensaje_segmento = strcmp(s->nombre,"un_segmento")==0 ? "find_segmento: BIEN" : "find_segmento: MAL";
 	log_info(logger, mensaje_segmento);
+
+
+	journal();
 
 	//describe_mem("C");
 	//drop_mem("C");
