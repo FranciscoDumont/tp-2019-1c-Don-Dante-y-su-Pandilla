@@ -105,7 +105,7 @@ int lfs_server() {
 				break;
 			case MEM_LFS_CREATE:
 				;
-				log_info(logger, "NEW MEMORY WILL BE CREATED");
+				log_info(logger, "NEW TABLE WILL BE CREATED");
 
 				recv(fd, &table_name_size, sizeof(int), 0);
 
