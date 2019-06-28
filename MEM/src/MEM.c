@@ -1078,7 +1078,7 @@ void execute_mem(comando_t* unComando){
 			} else {			    
 				i -> timestamp = strtoul(parametro4,NULL,10);
 			}
-			insert_mem(parametro1,atoi(parametro2),parametro3, (*i->timestamp));
+			insert_mem(parametro1,atoi(parametro2),parametro3, i->timestamp);
 
 			add_instruction(i);
 		}
