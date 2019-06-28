@@ -1011,7 +1011,7 @@ void execute_mem(comando_t* unComando){
 	strcpy(parametro4,unComando->parametro[3]);
 	strcpy(parametro5,unComando->parametro[4]);
 
-	//Instruction * i;
+	Instruction * i = malloc(sizeof(Instruction));
 
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
@@ -1055,28 +1055,32 @@ void execute_mem(comando_t* unComando){
 		}else if (parametro3[0] == '\0'){
 			printf("insert no recibio el valor\n");
 			return;
-		}else if (parametro4[0] == '\0'){
-			insert_mem(parametro1,atoi(parametro2),parametro3,unix_epoch());
 		}else {
 
 			
 			i -> i_type = INSERT;
+			i -> table_name = malloc(sizeof(char) * strlen(parametro1);
 
 			//destino, origen
-			strcpy(i -> table_name, nombre_tabla);
+			strcpy(i -> table_name, parametro[0]);
 
 			i -> key = key;
 
-			strcpy(i -> value, valor);
+			i -> value = malloc(sizeof(char) * strlen(parametro3);
+			strcpy(i -> value, parametro3);
 
 			i-> c_type = NULL;
 			i-> partitions = NULL;
 			i-> compaction_time = NULL;
+					    
+			if (parametro4[0] == '\0'){
+				i -> timestamp = unix_epoch();
+			} else {			    
+				i -> timestamp = strtoul(parametro4,NULL,10);
+			}
+			insert_mem(parametro1,atoi(parametro2),parametro3, (*)i->timestamp);
 
 			add_instruction(i);
-			
-
-			insert_mem(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
 		}
 
 	//CREATE
