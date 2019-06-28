@@ -1064,21 +1064,21 @@ void execute_mem(comando_t* unComando){
 			//destino, origen
 			strcpy(i -> table_name, parametro1);
 
-			i -> key = key;
+			i -> key = atoi(parametro2);
 
 			i -> value = malloc(sizeof(char) * strlen(parametro3));
 			strcpy(i -> value, parametro3);
 
-			i-> c_type = NULL;
-			i-> partitions = NULL;
-			i-> compaction_time = NULL;
+			i-> c_type = 0;
+			i-> partitions = 0;
+			i-> compaction_time = 0;
 					    
 			if (parametro4[0] == '\0'){
 				i -> timestamp = unix_epoch();
 			} else {			    
 				i -> timestamp = strtoul(parametro4,NULL,10);
 			}
-			insert_mem(parametro1,atoi(parametro2),parametro3, (*)i->timestamp);
+			insert_mem(parametro1,atoi(parametro2),parametro3, (*i->timestamp));
 
 			add_instruction(i);
 		}
