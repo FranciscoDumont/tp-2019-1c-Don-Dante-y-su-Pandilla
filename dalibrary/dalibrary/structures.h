@@ -175,6 +175,7 @@ typedef struct _Instruction {
 	ConsistencyTypes c_type;
 	int partitions;
 	unsigned long compaction_time;
+	unsigned long timestamp;
 }Instruction;
 
 //Kernel
