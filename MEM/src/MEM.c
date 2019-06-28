@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
 	instruction_list = list_create();
 
 	//cuidado aca ndeaaa skereeeeeeee
-	tests_memoria();
+	//tests_memoria();
 
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
@@ -1059,7 +1059,7 @@ void execute_mem(comando_t* unComando){
 			insert_mem(parametro1,atoi(parametro2),parametro3,unix_epoch());
 		}else {
 
-			/*
+			
 			i -> i_type = INSERT;
 
 			//destino, origen
@@ -1074,7 +1074,7 @@ void execute_mem(comando_t* unComando){
 			i-> compaction_time = NULL;
 
 			add_instruction(i);
-			*/
+			
 
 			insert_mem(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
 		}
@@ -1168,7 +1168,7 @@ void execute_mem(comando_t* unComando){
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		//info();
 	}else if (strcmp(comandoPrincipal,"journal")==0){
-		//journal();
+		journal();
 	}
 }
 
