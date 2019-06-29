@@ -1059,14 +1059,14 @@ void execute_mem(comando_t* unComando){
 
 			
 			i -> i_type = INSERT;
-			i -> table_name = malloc(sizeof(char) * strlen(parametro1));
+			i -> table_name = malloc(sizeof(char) * (strlen(parametro1)+1));
 
 			//destino, origen
 			strcpy(i -> table_name, parametro1);
 
 			i -> key = atoi(parametro2);
 
-			i -> value = malloc(sizeof(char) * strlen(parametro3));
+			i -> value = malloc(sizeof(char) * (strlen(parametro3)+1));
 			strcpy(i -> value, parametro3);
 
 			i-> c_type = 0;

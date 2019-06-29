@@ -313,7 +313,7 @@ void up_filesystem() {
 
 					MemtableTableReg * reg = malloc(sizeof(MemtableTableReg));
 					reg->records			= null;
-					reg->table_name			= malloc(sizeof(char) * strlen(tables_dirent->d_name));
+					reg->table_name			= malloc(sizeof(char) * strlen(tables_dirent->d_name)+1);
 					strcpy(reg->table_name, tables_dirent->d_name);
 
 					reg->compaction_time	= config_get_int_value(config, "COMPACTION_TIME");
