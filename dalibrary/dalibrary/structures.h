@@ -55,10 +55,7 @@ typedef enum _MessageType {
 	KNL_MEM_NO_TABLES,
 	KNL_MEM_DROP,
 	VALUE_SIZE_ERROR,
-	OPERATION_FAILURE,
-
-	EXIT
-
+	OPERATION_FAILURE
 
 } MessageType;
 
