@@ -477,11 +477,6 @@ void free_tables(){
 
 void add_instruction(Instruction* i){
 
-	if(memoria_esta_full()){
-		journal();
-		add_instruction(i);
-	}
-
 	if(is_drop(i) && !list_is_empty(instruction_list)){
 		delete_instructions(i -> table_name);
 		drop_mem(i -> table_name);
