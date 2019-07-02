@@ -399,7 +399,9 @@ int drop_mem(char * table_name){
 // instruction_list es una variable global
 
 void journal(){
-
+	
+	//Solo se journalea el insert
+	
 	log_info(logger, "Se inicia el JOURNAL");
 	int elements_count = list_size(instruction_list);
 	log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
@@ -421,12 +423,16 @@ void journal(){
 						insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
 					}
 					break;
+				/*
 				case CREATE:
 					log_info(logger, "J\tEs un CREATE");
 				 	create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
 				 	break;
+				*/
 			}
-		} else {
+		} 
+		/*
+		else {
 			switch(i -> i_type){
 				case SELECT:
 					log_info(logger, "J\tEs un SELECT");
@@ -437,7 +443,9 @@ void journal(){
 					describe_mem(i -> table_name);
 					break;
 			}
+		
 		}
+		*/
 		i = list_get(instruction_list, step);
 		step++;
 	}
@@ -1165,10 +1173,22 @@ void execute_mem(comando_t* unComando){
 
 	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
-		//info();
+		info();
 	}else if (strcmp(comandoPrincipal,"journal")==0){
 		journal();
 	}
+}
+
+void info(){
+    printf("SELECT\n La operación Select permite la obtención del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n SELECT [NOMBRE_TABLA] [KEY]\n\n");
+
+    printf("INSERT\n La operación Insert permite la creación y/o actualización del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp]\n\n");
+
+    printf("CREATE\n La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:\n CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n\n");
+
+    printf("DESCRIBE\n La operación Describe permite obtener la Metadata de una tabla en particular o de todas las tablas que el File System tenga. Para esto, se utiliza la siguiente nomenclatura:\n DESCRIBE [NOMBRE_TABLA]\n\n");
+
+    printf("DROP\n La operación Drop permite la eliminación de una tabla del file system. Para esto, se utiliza la siguiente nomenclatura:\n DROP [NOMBRE_TABLA]\n\n");
 }
 
 void tests_memoria(){
