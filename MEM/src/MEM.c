@@ -31,6 +31,9 @@ t_list * instruction_list;
 
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
+void journal_start(pthread_t * journal_thread);
+void journal_routine();
+
 
 void tests_memoria();
 void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado);
@@ -140,6 +143,9 @@ int main(int argc, char **argv) {
 	pthread_t thread_server;
 	server_start(&thread_server);
 
+	pthread_t journal_thread;
+	journal_start(&journal_thread);
+
 	//Inicializo las variables globales
 	tabla_segmentos = list_create();
 	cantidad_paginas_actuales = 0;
@@ -159,6 +165,8 @@ int main(int argc, char **argv) {
 	
 	pthread_detach(thread_g);
 	pthread_detach(thread_server);
+	pthread_detach(journal_thread);
+
 	pthread_join(mem_console_id, NULL);
 
 	free(mapa_memoria);
@@ -171,6 +179,25 @@ int obtener_tamanio_pagina() {
 			config.value_size;
 }
 
+void journal_start(pthread_t * journal_thread){
+	pthread_create(journal_thread, NULL, journal_routine, NULL);
+
+}
+
+void journal_routine(){
+	while(1) {
+			/*
+				int init_normal_mutex(pthread_mutex_t * mutex, char * name) {
+				int destroy_mutex(pthread_mutex_t * mutex) {
+				int lock_mutex(pthread_mutex_t * mutex) {
+				int unlock_mutex(pthread_mutex_t * mutex) {
+
+				journal();
+			 */
+
+			sleep(config.journal_time / 1000);
+	}
+}
 
 
 //TODO: Manejar el tema de timestamp desde la funcion que llama a esta
