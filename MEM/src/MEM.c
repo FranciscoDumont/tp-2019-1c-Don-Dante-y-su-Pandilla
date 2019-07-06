@@ -29,6 +29,8 @@ typedef struct {
 
 t_list * instruction_list;
 
+pthread_mutex_t * journal_by_time;
+
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
 void journal_start(pthread_t * journal_thread);
@@ -143,6 +145,14 @@ int main(int argc, char **argv) {
 	pthread_t thread_server;
 	server_start(&thread_server);
 
+	int mutex_ok = init_normal_mutex(&journal_by_time, "Journal mutex");
+
+	if(mutex_ok){
+		log_info(logger, "Se crea el mutex para el journal por tiempo");
+	}else{
+		log_info(logger, "No se pudo crear el mutex para el journal por tiempo");
+	}
+
 	pthread_t journal_thread;
 	journal_start(&journal_thread);
 
@@ -186,16 +196,12 @@ void journal_start(pthread_t * journal_thread){
 
 void journal_routine(){
 	while(1) {
-			/*
-				int init_normal_mutex(pthread_mutex_t * mutex, char * name) {
-				int destroy_mutex(pthread_mutex_t * mutex) {
-				int lock_mutex(pthread_mutex_t * mutex) {
-				int unlock_mutex(pthread_mutex_t * mutex) {
 
-				journal();
-			 */
+		sleep(config.journal_time / 1000);
 
-			sleep(config.journal_time / 1000);
+		log_info(logger, "Se inicia el JOURNAL por tiempo");
+		journal();
+
 	}
 }
 
@@ -340,7 +346,14 @@ char * select_mem(char * table_name, int key){
 				log_info(logger, "No hay páginas disponibles");
 			
 				if (memoria_esta_full()){
-					//Hacer el journal  
+					//Hacer el journal
+					int r;
+					r = lock_mutex(journal_by_time);
+					if(r == 0){
+						journal();
+					}
+					r = unlock_mutex(journal_by_time);
+
 				}else {
 					//ejecutamos el algoritmo de reemplazo
 					log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
@@ -434,52 +447,55 @@ void journal(){
 	log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
 	Instruction * i;
 	i = list_get(instruction_list, 0);
-	int step = 1;
+	int step = 0;
 
-	while(step <= elements_count){
-		log_info(logger, "J\tPaso %d de %d", step, elements_count);
-		if(modified_page(i -> table_name, i->key)){
-			switch(i -> i_type){
-				case INSERT:
-					log_info(logger, "J\tEs un INSERT");
-					if(!existe_segmento(i -> table_name)){
-						log_info(logger, "Non existent table %s. It will be created...", i -> table_name);
-						create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
-						insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
-					} else {
-						insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
-					}
-					break;
-				/*
-				case CREATE:
-					log_info(logger, "J\tEs un CREATE");
-				 	create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
-				 	break;
-				*/
+	if(step == elements_count){
+		log_info(logger, "No hay instrucciones para journalear");
+	}else{
+		while(step <= elements_count){
+			log_info(logger, "J\tPaso %d de %d", step, elements_count);
+			if(modified_page(i -> table_name, i->key)){
+				switch(i -> i_type){
+					case INSERT:
+						log_info(logger, "J\tEs un INSERT");
+						if(!existe_segmento(i -> table_name)){
+							log_info(logger, "Non existent table %s. It will be created...", i -> table_name);
+							create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
+							insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+						} else {
+							insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+						}
+						break;
+						/*
+					case CREATE:
+						log_info(logger, "J\tEs un CREATE");
+				 		create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
+				 		break;
+						 */
+				}
 			}
-		} 
-		/*
-		else {
-			switch(i -> i_type){
-				case SELECT:
-					log_info(logger, "J\tEs un SELECT");
-					select_mem(i -> table_name, i -> key);
-					break;
-				case DESCRIBE:
-					log_info(logger, "J\tEs un DESCRIBE");
-					describe_mem(i -> table_name);
-					break;
+			/*
+			else {
+				switch(i -> i_type){
+					case SELECT:
+						log_info(logger, "J\tEs un SELECT");
+						select_mem(i -> table_name, i -> key);
+						break;
+					case DESCRIBE:
+						log_info(logger, "J\tEs un DESCRIBE");
+						describe_mem(i -> table_name);
+						break;
+				}
+
 			}
-		
+			 */
+			i = list_get(instruction_list, step);
+			step++;
 		}
-		*/
-		i = list_get(instruction_list, step);
-		step++;
+
+		free_tables(instruction_list);
+		list_clean(instruction_list);
 	}
-
-	free_tables(instruction_list);
-	list_clean(instruction_list);
-
 }
 
 
@@ -1202,7 +1218,12 @@ void execute_mem(comando_t* unComando){
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		info();
 	}else if (strcmp(comandoPrincipal,"journal")==0){
-		journal();
+		int r;
+		r = lock_mutex(journal_by_time);
+		if(r == 0){
+			journal();
+		}
+		r = unlock_mutex(journal_by_time);
 	}
 }
 
