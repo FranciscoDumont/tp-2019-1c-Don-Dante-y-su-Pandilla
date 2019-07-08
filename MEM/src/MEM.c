@@ -447,9 +447,9 @@ void journal(){
 	log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
 	Instruction * i;
 	i = list_get(instruction_list, 0);
-	int step = 0;
+	int step = 1;
 
-	if(step == elements_count){
+	if(0 == elements_count){
 		log_info(logger, "No hay instrucciones para journalear");
 	}else{
 		while(step <= elements_count){
@@ -544,12 +544,12 @@ void delete_instructions(char * target_table){
 
 	int elements_count = list_size(instruction_list);
 	Instruction * i;
-	i = list_get(instruction_list, 1);
-	int step = 1;
+	i = list_get(instruction_list, 0);
+	int step = 0;
 
 	while(step < elements_count){
 		if(strcmp(i -> table_name, target_table) == 0)
-			list_remove(instruction_list, i);
+			list_remove(instruction_list, step);
 		step++;
 		i = list_get(instruction_list, step);
 	}
