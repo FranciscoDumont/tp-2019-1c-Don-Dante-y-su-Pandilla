@@ -458,12 +458,13 @@ int journal(){
 					switch(i -> i_type){
 						case INSERT:
 							log_info(logger, "J\tEs un INSERT");
-							if(!existe_segmento(i -> table_name)){
-								log_info(logger, "Non existent table %s. It will be created...", i -> table_name);
-								create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
-								insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
-							} else {
-								insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+
+							char * nombre_tabla = i -> table_name;
+							int key = i -> key;
+							char * valor = i -> value;
+							unsigned long timestamp = i -> timestamp;
+							insert_into_lfs(nombre_tabla, key, valor, timestamp);
+
 							}
 							break;
 							/*
@@ -495,10 +496,40 @@ int journal(){
 
 			free_tables(instruction_list);
 			list_clean(instruction_list);
-		}
 	}
 	r = unlock_mutex(journal_by_time);
 	return EXIT_SUCCESS;
+}
+
+
+int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long timestamp){
+	//El journal usa esta funcion para pasarle a LFS todos los inserts que tiene que hacer
+
+	log_info(logger, "LE MANDO UN INSERT A LFS: insert_into_lfs(%s, %d, %s, %d)", nombre_tabla, key, valor, timestamp);
+	int exit_value;
+	send_data(config.lfs_socket, MEM_LFS_INSERT, 0, null);
+
+	int table_name_len = strlen(nombre_tabla)+1;
+	int valor_len = strlen(valor)+1;
+
+	send(config.lfs_socket, &table_name_len, sizeof(int), 0);
+	send(config.lfs_socket, nombre_tabla,    table_name_len,0);
+	send(config.lfs_socket, &key,            sizeof(int), 0);
+	send(config.lfs_socket, &valor_len,      sizeof(int), 0);
+	send(config.lfs_socket, valor,           valor_len,0);
+	send(config.lfs_socket, &timestamp,      sizeof(unsigned long), 0);
+
+	MessageHeader * header = malloc(sizeof(MessageHeader));
+	recieve_header(config.lfs_socket, header);
+	if(header->type == OPERATION_SUCCESS) {
+		log_info(logger, "LFS ANSWERED SUCCESFULLY");
+		log_info(logger, "INSERT EN EL FILESYSTEM");
+		exit_value = EXIT_SUCCESS;
+	} else {
+		log_info(logger, "LFS NO PUDO INSERTAR EL REGISTRO");
+		exit_value = EXIT_FAILURE;
+	}
+	return exit_value;
 }
 
 

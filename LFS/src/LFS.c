@@ -163,14 +163,21 @@ int lfs_server() {
 				table_name = to_upper_string(table_name);
 
 				int key;
-				char * value;
+
 				unsigned long timestamp;
 				recv(fd, &key, sizeof(int), 0);
-				recv(fd, &value, sizeof(char), 0);
-				recv(fd, &timestamp, sizeof(long), 0);
+				// -- manejo del value size 🙊 --
+				int value_size;
+				char * value = malloc(sizeof(config.value_size) + sizeof(char));
+				recv(fd, &value_size, sizeof(int), 0);
+				recv(fd, value, value_size, 0);
+				value[value_size / sizeof(char)] = '\0';
+				// -----------------------------
+				recv(fd, &timestamp, sizeof(unsigned long), 0);
 
 				int insert_result;
-				insert_result = insert_fs(table_name, key, &value, timestamp);
+				insert_result = insert_fs(table_name, key, value, timestamp);
+				free(value);
 
 				if(insert_result == 0){
 					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
