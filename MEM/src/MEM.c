@@ -70,7 +70,7 @@ void execute_mem(comando_t* unComando);
 void info();
 
 void add_instruction(Instruction* i);
-void journal();
+int journal();
 void delete_instructions(char * table_name);
 int modified_page(char * table_name, int key);
 int is_drop(Instruction* i);
@@ -252,7 +252,7 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		crear_segmento(nombre_tabla);
 		insert_mem(nombre_tabla,key,valor,timestamp);
 	}
-
+	return EXIT_SUCCESS;
 }
 
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
@@ -433,7 +433,7 @@ int drop_mem(char * table_name){
 
 // instruction_list es una variable global
 
-void journal(){
+int journal(){
 	
 	int r;
 	r = lock_mutex(journal_by_time);
