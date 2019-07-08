@@ -75,6 +75,7 @@ void delete_instructions(char * table_name);
 int modified_page(char * table_name, int key);
 int is_drop(Instruction* i);
 void free_tables();
+int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long timestamp);
 
 
 void set_pagina_timestamp_modificado(pagina_t * p, unsigned long timestamp_modificacion);
@@ -168,7 +169,7 @@ int main(int argc, char **argv) {
 	instruction_list = list_create();
 
 	//cuidado aca ndeaaa skereeeeeeee
-	//tests_memoria();
+	tests_memoria();
 
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
@@ -232,9 +233,9 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 				if (memoria_esta_full()){
 					log_info(logger, "\tTodas las paginas estan con flag en 1");
 					//hacer el journaling
-					//hacer journal e insertar o solo hacer journal ??
-
-					//hacer el journal e insertar
+					log_info(logger, "\tEmpiezo journal desde el insert porque esta llena la memoria");
+					journal();
+					insert_mem(nombre_tabla,key,valor,timestamp);
 
 				}else {
 					//algoritmo de reemplazo
