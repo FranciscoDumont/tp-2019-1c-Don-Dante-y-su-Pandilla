@@ -347,12 +347,7 @@ char * select_mem(char * table_name, int key){
 			
 				if (memoria_esta_full()){
 					//Hacer el journal
-					int r;
-					r = lock_mutex(journal_by_time);
-					if(r == 0){
-						journal();
-					}
-					r = unlock_mutex(journal_by_time);
+					journal();
 
 				}else {
 					//ejecutamos el algoritmo de reemplazo
@@ -440,62 +435,69 @@ int drop_mem(char * table_name){
 
 void journal(){
 	
-	//Solo se journalea el insert
+	int r;
+	r = lock_mutex(journal_by_time);
+	if(r == 0){
+
+		//Solo se journalea el insert
+
+		log_info(logger, "Se inicia el JOURNAL");
+		int elements_count = list_size(instruction_list);
+		log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
+		Instruction * i;
+		i = list_get(instruction_list, 0);
+		int step = 1;
 	
-	log_info(logger, "Se inicia el JOURNAL");
-	int elements_count = list_size(instruction_list);
-	log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
-	Instruction * i;
-	i = list_get(instruction_list, 0);
-	int step = 1;
-
-	if(0 == elements_count){
-		log_info(logger, "No hay instrucciones para journalear");
-	}else{
-		while(step <= elements_count){
-			log_info(logger, "J\tPaso %d de %d", step, elements_count);
-			if(modified_page(i -> table_name, i->key)){
-				switch(i -> i_type){
-					case INSERT:
-						log_info(logger, "J\tEs un INSERT");
-						if(!existe_segmento(i -> table_name)){
-							log_info(logger, "Non existent table %s. It will be created...", i -> table_name);
+		if(0 == elements_count){
+			log_info(logger, "No hay instrucciones para journalear");
+		}else{
+			while(step <= elements_count){
+				log_info(logger, "J\tPaso %d de %d", step, elements_count);
+				if(modified_page(i -> table_name, i->key)){
+					switch(i -> i_type){
+						case INSERT:
+							log_info(logger, "J\tEs un INSERT");
+							if(!existe_segmento(i -> table_name)){
+								log_info(logger, "Non existent table %s. It will be created...", i -> table_name);
+								create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
+								insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+							} else {
+								insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
+							}
+							break;
+							/*
+						case CREATE:
+							log_info(logger, "J\tEs un CREATE");
 							create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
-							insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
-						} else {
-							insert_mem(i -> table_name, i -> key, i -> value, i -> compaction_time);
-						}
-						break;
-						/*
-					case CREATE:
-						log_info(logger, "J\tEs un CREATE");
-				 		create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
-				 		break;
-						 */
+							break;
+							 */
+					}
 				}
-			}
-			/*
-			else {
-				switch(i -> i_type){
-					case SELECT:
-						log_info(logger, "J\tEs un SELECT");
-						select_mem(i -> table_name, i -> key);
-						break;
-					case DESCRIBE:
-						log_info(logger, "J\tEs un DESCRIBE");
-						describe_mem(i -> table_name);
-						break;
-				}
+				/*
+				else {
+					switch(i -> i_type){
+						case SELECT:
+							log_info(logger, "J\tEs un SELECT");
+							select_mem(i -> table_name, i -> key);
+							break;
+						case DESCRIBE:
+							log_info(logger, "J\tEs un DESCRIBE");
+							describe_mem(i -> table_name);
+							break;
+					}
 
+				}
+				 */
+				i = list_get(instruction_list, step);
+				step++;
 			}
-			 */
-			i = list_get(instruction_list, step);
-			step++;
+
+			free_tables(instruction_list);
+			list_clean(instruction_list);
 		}
-
-		free_tables(instruction_list);
-		list_clean(instruction_list);
 	}
+	r = unlock_mutex(journal_by_time);
+	return EXIT_SUCCESS;
 }
 
 
@@ -1218,12 +1220,7 @@ void execute_mem(comando_t* unComando){
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		info();
 	}else if (strcmp(comandoPrincipal,"journal")==0){
-		int r;
-		r = lock_mutex(journal_by_time);
-		if(r == 0){
-			journal();
-		}
-		r = unlock_mutex(journal_by_time);
+		journal();
 	}
 }
 
