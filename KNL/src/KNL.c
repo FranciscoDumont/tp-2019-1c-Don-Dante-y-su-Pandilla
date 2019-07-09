@@ -1,6 +1,7 @@
 #include <dalibrary/libmain.h>
 
 t_log * logger;
+t_log * metrics_logger;
 t_config * config_file = null;
 KNLConfig config;
 
@@ -22,6 +23,8 @@ ConsistencyCriterion CriterionStrong;
 ConsistencyCriterion CriterionEventual;
 ConsistencyCriterion CriterionHash;
 
+ConsistencyCriterion * getCriterionPointer(MemtableTableReg * table);
+
 MemPoolData * getMemoryData(int id);
 void running();
 _Bool exec_lql_line(LQLScript * lql);
@@ -29,6 +32,7 @@ void print_op_debug(Instruction * i);
 void gossiping_start(pthread_t * thread);
 void metadata_refresh_loop();
 void refresh_metadata(_Bool print_x_screen);
+void metrics_thread();
 
 //TODO: Implementar luego
 _Bool insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
@@ -56,12 +60,15 @@ int main(int argc, char **argv) {
 
 	CriterionEventual.type = EVENTUAL_CONSISTENCY;
 	CriterionEventual.memories = list_create();
+	CriterionEventual.metrics_start_measure = unix_epoch();
 
 	CriterionHash.type = STRONG_HASH_CONSISTENCY;
 	CriterionHash.memories = list_create();
+	CriterionHash.metrics_start_measure = unix_epoch();
 
 	CriterionStrong.type = STRONG_CONSISTENCY;
 	CriterionStrong.memories = list_create();
+	CriterionStrong.metrics_start_measure = unix_epoch();
 
 	tables_dict = list_create();
 
@@ -79,6 +86,7 @@ int main(int argc, char **argv) {
 	config.current_multiprocessing = 0;
 
 	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
+	metrics_logger = log_create("metrics_logger.log", "KNL", true, LOG_LEVEL_TRACE);
 
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
@@ -89,8 +97,14 @@ int main(int argc, char **argv) {
 		list_add(exec_threads, &thread_r);
 	}
 
+	restart_criterion_stats();
+
 	pthread_t knl_console_id;
 	pthread_create(&knl_console_id, NULL, consola_knl, NULL);
+
+	pthread_t metrics_id;
+	pthread_create(&metrics_id, NULL, metrics_thread, NULL);
+
 
 	pthread_t refresh_mtdt_id;
 	pthread_create(&refresh_mtdt_id, NULL, metadata_refresh_loop, NULL);
@@ -101,6 +115,7 @@ int main(int argc, char **argv) {
 	}
 	pthread_join(refresh_mtdt_id, NULL);
 	pthread_join(thread_g, NULL);
+	pthread_join(metrics_id, NULL);
 
 	return EXIT_SUCCESS;
 }
@@ -509,7 +524,7 @@ void execute_knl(comando_t* unComando){
 			run_knl(parametro1);
 		}
 	} else if (strcmp(comandoPrincipal,"metrics")==0){
-
+		perform_metrics();
 	} else if (strcmp(comandoPrincipal,"info")==0){
 		//info();
 	}
@@ -556,6 +571,7 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 		return false;
 	} else {
 		int exit_value;
+		unsigned long op_start = unix_epoch();
 		send_data(memsocket, KNL_MEM_INSERT, 0, null);
 
 		int table_name_len = strlen(table_name)+1;
@@ -579,9 +595,114 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 			log_info(logger, "INSERT ERROR");
 			return false;
 		}
+
+		unsigned long op_end = unix_epoch();
+		unsigned long op_length = op_end - op_start;
+		ConsistencyCriterion * criterion = getCriterionPointer(tReg);
+		criterion->write_acum_count++;
+		criterion->write_acum_times += op_length;
 	}
 
 	return false;
+}
+
+void restart_criterion_stats() {
+	CriterionHash.read_acum_count = 0;
+	CriterionHash.read_acum_times = 0;
+	CriterionHash.write_acum_count = 0;
+	CriterionHash.write_acum_times = 0;
+	CriterionHash.metrics_start_measure = unix_epoch();
+
+	CriterionStrong.read_acum_count = 0;
+	CriterionStrong.read_acum_times = 0;
+	CriterionStrong.write_acum_count = 0;
+	CriterionStrong.write_acum_times = 0;
+	CriterionStrong.metrics_start_measure = unix_epoch();
+
+	CriterionEventual.read_acum_count = 0;
+	CriterionEventual.read_acum_times = 0;
+	CriterionEventual.write_acum_count = 0;
+	CriterionEventual.write_acum_times = 0;
+	CriterionEventual.metrics_start_measure = unix_epoch();
+}
+
+ConsistencyCriterion * getCriterionPointer(MemtableTableReg * table) {
+	switch(table->consistency) {
+	case STRONG_HASH_CONSISTENCY:
+		return &CriterionHash;
+		break;
+	case STRONG_CONSISTENCY:
+		return &CriterionStrong;
+		break;
+	case EVENTUAL_CONSISTENCY:
+		return &CriterionEventual;
+		break;
+	}
+	return null;
+}
+
+void perform_metrics() {
+	int a;
+	log_info(metrics_logger, "INIT_METRICS_LOGGER_%ul", CriterionHash.metrics_start_measure);
+
+	log_info(metrics_logger, "SHC: Read Latency = %f",
+			(CriterionHash.read_acum_count == 0) ? 0 : (CriterionHash.read_acum_times / CriterionHash.read_acum_count));
+	log_info(metrics_logger, "SHC: Write Latency = %f",
+			(CriterionHash.write_acum_count == 0) ? 0 : (CriterionHash.write_acum_times / CriterionHash.write_acum_count));
+	log_info(metrics_logger, "SHC: Read Count = %d",
+			CriterionHash.read_acum_count);
+	log_info(metrics_logger, "SHC: Write Count = %d",
+			CriterionHash.write_acum_count);
+
+	log_info(metrics_logger, " SC: Read Latency = %f",
+			(CriterionStrong.read_acum_count == 0) ? 0 : (CriterionStrong.read_acum_times / CriterionStrong.read_acum_count));
+	log_info(metrics_logger, " SC: Write Latency = %f",
+			(CriterionStrong.write_acum_count == 0) ? 0 : (CriterionStrong.write_acum_times / CriterionStrong.write_acum_count));
+	log_info(metrics_logger, " SC: Read Count = %d",
+			CriterionStrong.read_acum_count);
+	log_info(metrics_logger, " SC: Write Count = %d",
+			CriterionStrong.write_acum_count);
+
+	log_info(metrics_logger, " EC: Read Latency = %f",
+			(CriterionEventual.read_acum_count == 0) ? 0 : (CriterionEventual.read_acum_times / CriterionEventual.read_acum_count));
+	log_info(metrics_logger, " EC: Write Latency = %f",
+			(CriterionEventual.write_acum_count == 0) ? 0 : (CriterionEventual.write_acum_times / CriterionEventual.write_acum_count));
+	log_info(metrics_logger, " EC: Read Count = %d",
+			CriterionEventual.read_acum_count);
+	log_info(metrics_logger, " EC: Write Count = %d",
+			CriterionEventual.write_acum_count);
+
+	for(a=0 ; a<gossiping_list->elements_count ; a++) {
+		int memsocket;
+		MemPoolData * memory = list_get(gossiping_list, a);
+		if ((memsocket = create_socket()) == -1) {
+			memsocket = -1;
+		}
+		if (memsocket != -1 && (connect_socket(memsocket, memory->ip, memory->port)) == -1) {
+			memsocket = -1;
+		}
+		if(memsocket == -1) {
+		} else {
+			send_data(memsocket, GIVE_ME_YOUR_METRICS, 0, null);
+			int to, ro, wo;
+			recv(memsocket, &to, sizeof(int), 0);
+			recv(memsocket, &ro, sizeof(int), 0);
+			recv(memsocket, &wo, sizeof(int), 0);
+
+			log_info(metrics_logger, "MEM[%d] Memory Load = %f",
+							memory->memory_id, ((ro+wo) / to));
+		}
+	}
+
+	log_info(metrics_logger, "END_METRICS_LOGGER_%ul", CriterionHash.metrics_start_measure);
+}
+
+void metrics_thread() {
+	while(1) {
+		perform_metrics();
+		restart_criterion_stats();
+		sleep(30);
+	}
 }
 
 _Bool select_knl(char * table_name, int key){
@@ -610,6 +731,7 @@ _Bool select_knl(char * table_name, int key){
 		return false;
 	} else {
 		int exit_value;
+		unsigned long op_start = unix_epoch();
 		send_data(memsocket, KNL_MEM_SELECT, 0, null);
 
 		int table_name_len = strlen(table_name)+1;
@@ -634,6 +756,12 @@ _Bool select_knl(char * table_name, int key){
 			log_info(logger, "SELECT ERROR");
 			return false;
 		}
+
+		unsigned long op_end = unix_epoch();
+		unsigned long op_length = op_end - op_start;
+		ConsistencyCriterion * criterion = getCriterionPointer(tReg);
+		criterion->read_acum_count++;
+		criterion->read_acum_times += op_length;
 	}
 	return false;
 }

@@ -58,7 +58,9 @@ typedef enum _MessageType {
 	MEM_KNL_JOURNAL_OK,
 	KNL_MEM_DESCRIBE_METADATA,
 	VALUE_SIZE_ERROR,
-	OPERATION_FAILURE
+	OPERATION_FAILURE,
+
+	GIVE_ME_YOUR_METRICS
 
 } MessageType;
 
@@ -218,6 +220,11 @@ typedef struct _lql {
 typedef struct _consistency_criterion {
 	ConsistencyTypes type;
 	t_list * memories;
+	unsigned long metrics_start_measure;
+	int read_acum_times;
+	int read_acum_count;
+	int write_acum_times;
+	int write_acum_count;
 } ConsistencyCriterion;
 
 

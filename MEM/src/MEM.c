@@ -12,6 +12,10 @@ int mapa_memoria_size;
 int cantidad_paginas_actuales;
 int limite_paginas;
 
+int total_operations;
+int read_operations;
+int write_operations;
+
 t_list* tabla_segmentos;
 
 typedef struct {
@@ -154,6 +158,10 @@ int main(int argc, char **argv) {
 		log_info(logger, "No se pudo crear el mutex para el journal por tiempo");
 	}
 
+	total_operations = 0;
+	write_operations = 0;
+	read_operations = 0;
+
 	pthread_t journal_thread;
 	journal_start(&journal_thread);
 
@@ -253,6 +261,8 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		crear_segmento(nombre_tabla);
 		insert_mem(nombre_tabla,key,valor,timestamp);
 	}
+	total_operations++;
+	write_operations++;
 	return EXIT_SUCCESS;
 }
 
@@ -281,14 +291,15 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 		exit_value = EXIT_FAILURE;
 	}
 
-
+	total_operations++;
 	return exit_value;
 }
 
 
 char * select_mem(char * table_name, int key){
-
 	log_info(logger, "Inicio select %s, %d", table_name, key);
+	total_operations++;
+	read_operations++;
 
 	//Buscamos el segmento y verificamos su existencia
 	segmento_t* segmento_buscado = find_segmento(table_name);
@@ -376,6 +387,8 @@ t_list * describe_mem(char * table_name){
 	int exit_value = EXIT_FAILURE, f, a;
 	send_data(config.lfs_socket, MEM_LFS_DESCRIBE, 0, null);
 
+	total_operations++;
+
 	if(strcmp(table_name, "") == 0){
 		int z = 0;
 		send(config.lfs_socket, &z, sizeof(int), 0);
@@ -421,6 +434,7 @@ t_list * describe_mem(char * table_name){
 
 int drop_mem(char * table_name){
 	log_info(logger, "INICIA DROP: drop_mem(%s)", table_name);
+	total_operations++;
 	//Verifica si existe un segmento de dicha tabla en la
 	//memoria principal y de haberlo libera dicho espacio.
 	if (existe_segmento(table_name)){
@@ -454,7 +468,7 @@ int drop_mem(char * table_name){
 // instruction_list es una variable global
 
 int journal(){
-	
+	total_operations++;
 	int r;
 	r = lock_mutex(&journal_by_time);
 	if(r == 0){
@@ -1094,6 +1108,13 @@ int server_function() {
 					send(fd, &table_n_l, sizeof(int), 0);
 					send(fd, table->table_name, table_n_l * sizeof(char), 0);
 				}
+			case GIVE_ME_YOUR_METRICS:
+				{
+					send(fd, &total_operations, sizeof(int), 0);
+					send(fd, &read_operations, sizeof(int), 0);
+					send(fd, &write_operations, sizeof(int), 0);
+				}
+				break;
 
 				break;
 		}
