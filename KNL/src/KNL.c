@@ -34,6 +34,8 @@ void metadata_refresh_loop();
 void refresh_metadata(_Bool print_x_screen);
 void metrics_thread();
 
+MemPoolData * select_memory_by_consistency(ConsistencyTypes type, int key);
+
 //TODO: Implementar luego
 _Bool insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
 _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
@@ -172,24 +174,26 @@ void running(int n) {
 }
 
 void add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
-	log_info(logger, "ADDING %d TO %s", memory_id, consistency_to_char(type));
+	int * did = malloc(sizeof(int));
+	(*did) = memory_id;
+	log_info(logger, "ADDING %d TO %s", *did, consistency_to_char(type));
 	switch(type) {
 		case EVENTUAL_CONSISTENCY:
-			list_add(CriterionEventual.memories, &memory_id);
+			list_add(CriterionEventual.memories, did);
 			break;
 		case STRONG_CONSISTENCY:
-			list_add(CriterionStrong.memories, &memory_id);
+			list_add(CriterionStrong.memories, did);
 			break;
 		case STRONG_HASH_CONSISTENCY:
-			list_add(CriterionHash.memories, &memory_id);
+			list_add(CriterionHash.memories, did);
 			journal_to_memories_list(CriterionHash.memories);
 			break;
 	}
 }
 
 MemPoolData * getMemoryData(int id) {
-	_Bool find_by_id(int * mid) {
-		return (*mid) == id;
+	_Bool find_by_id(MemPoolData * this_mem) {
+		return this_mem->memory_id == id;
 	}
 	return list_find(gossiping_list, find_by_id);
 }
@@ -461,18 +465,20 @@ void execute_knl(comando_t* unComando){
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "create no recibio el nombre de la tabla\n");
+			log_info(logger, "Indique el nombre de la Tabla");
 			return;
 		}else if (parametro2[0] == '\0'){
-			log_info(logger, "create no recibio el tipo de consistencia\n");
+			log_info(logger, "Indique el tipo de consistencia");
 			return;
 		}else if (parametro3[0] == '\0'){
-			log_info(logger, "create no recibio la particion\n");
+			log_info(logger, "Indique la cantidad de particiones");
 			return;
 		}else if (parametro4[0] == '\0'){
-			log_info(logger, "create no recibio el tiempo de compactacion\n");
+			log_info(logger, "Indique el tiempo de compactacion");
 			return;
-		}//else create_knl(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
+		}else {
+			create_knl(parametro1, char_to_consistency(parametro2), atoi(parametro3), atoi(parametro4));
+		}
 	//DESCRIBE
 	}else if (strcmp(comandoPrincipal,"describe")==0){
 		//chekea si parametro es nulo adentro de describe_knl
@@ -529,6 +535,12 @@ void execute_knl(comando_t* unComando){
 		perform_metrics();
 	} else if (strcmp(comandoPrincipal,"info")==0){
 		//info();
+	}else if (strcmp(comandoPrincipal,"find")==0){
+		if(parametro1[0] == '\0'){
+			log_info(logger, "Indique el numero de memoria");
+		}else {
+			getMemoryData(atoi(parametro1));
+		}
 	}
 }
 
@@ -540,36 +552,44 @@ MemtableTableReg * find_table(char * name) {
 }
 
 MemPoolData * select_memory_by_table(MemtableTableReg * table, int key) {
+	return select_memory_by_consistency(table->consistency, key);
+}
+
+MemPoolData * select_memory_by_consistency(ConsistencyTypes type, int key) {
 	//TODO
-	switch(table->consistency) {
+	int * si = null;
+	switch(type) {
 	case STRONG_CONSISTENCY:
 		if(CriterionStrong.memories->elements_count == 0)
 			return null;
-		return list_get(CriterionStrong.memories, 0);
+		si = list_get(CriterionStrong.memories, 0);
 		break;
 	case EVENTUAL_CONSISTENCY:
+		log_info(logger, "trying %d %d", CriterionEventual.rr_next_to_use, CriterionEventual.memories->elements_count);
 		if(CriterionEventual.rr_next_to_use >= CriterionEventual.memories->elements_count) {
 			CriterionEventual.rr_next_to_use = 0;
 			if(CriterionEventual.memories->elements_count != 0) {
 				CriterionEventual.rr_next_to_use++;
-				return list_get(CriterionEventual.memories, 0);
+				si = list_get(CriterionEventual.memories, 0);
 			}
 		} else {
 			CriterionEventual.rr_next_to_use++;
-			return list_get(CriterionEventual.memories, (CriterionEventual.rr_next_to_use-1));
+			si = list_get(CriterionEventual.memories, (CriterionEventual.rr_next_to_use-1));
 		}
 		break;
 	case STRONG_HASH_CONSISTENCY:
 		if(CriterionHash.memories->elements_count == 0)
 			return null;
 		if(key == -1) {
-			return list_get(CriterionHash.memories, 0);
+			si = list_get(CriterionHash.memories, 0);
 		} else {
 			int selected_index = key % CriterionHash.memories->elements_count;
-			return list_get(CriterionHash.memories, selected_index);
+			si = list_get(CriterionHash.memories, selected_index);
 		}
 		break;
 	}
+	log_info(logger, "USING SID %d", (*si));
+	return getMemoryData(*si);
 	return null;
 }
 
@@ -847,28 +867,47 @@ _Bool drop_knl(char * table_name){
 	return false;
 }
 
-
-/*int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
-	log_info(logger, "INICIA CREATE: create_knl(%s, %d, %d, %d)", table_name, consistency, partitions, compaction_time);
-	int exit_value;
-	send_data(config.a_memory_ip, KNL_MEM_CREATE, 0, null);
-
-	int table_name_len = strlen(table_name)+1;
-	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
-	send(config.a_memory_ip, table_name,       table_name_len,0);
-
-	send(config.a_memory_ip, &consistency, sizeof(int), 0);
-	send(config.a_memory_ip, &partitions, sizeof(int), 0);
-	send(config.a_memory_ip, &compaction_time, sizeof(int), 0);
-
-	MessageHeader * header = malloc(sizeof(MessageHeader));
-	recieve_header(config.a_memory_ip, header);
-	if(header->type == OPERATION_SUCCESS) {
-		log_info(logger, "MEM ANSWERED SUCCESFULLY");
-		exit_value = EXIT_SUCCESS;
-	} else {
-		log_info(logger, "CREATE ERROR");
-		exit_value = EXIT_FAILURE;
+_Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
+	MemPoolData * selected_memory = select_memory_by_consistency(consistency, -1);
+	if(selected_memory == null) {
+		log_error(logger, "No available memory for table");
+		return false;
 	}
-	return exit_value;
-}*/
+
+	log_info(logger, "SELECTED %d %s %d", selected_memory->memory_id, selected_memory->ip, selected_memory->port);
+
+	int memsocket;
+
+	if ((memsocket = create_socket()) == -1) {
+		memsocket = -1;
+	}
+	if (memsocket != -1 && (connect_socket(memsocket, selected_memory->ip, selected_memory->port)) == -1) {
+		memsocket = -1;
+	}
+	if(memsocket == -1) {
+		log_error(logger, "Memory was unreachable");
+		return false;
+	} else {
+		int exit_value;
+		send_data(memsocket, KNL_MEM_CREATE, 0, null);
+
+		int table_name_len = strlen(table_name)+1;
+		send(memsocket, &table_name_len,  sizeof(int), 0);
+		send(memsocket, table_name,       table_name_len * sizeof(char),0);
+
+		send(memsocket, &consistency, sizeof(int), 0);
+		send(memsocket, &partitions, sizeof(int), 0);
+		send(memsocket, &compaction_time, sizeof(int), 0);
+
+		MessageHeader * header = malloc(sizeof(MessageHeader));
+		recieve_header(memsocket, header);
+		if(header->type == OPERATION_SUCCESS) {
+			log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			exit_value = EXIT_SUCCESS;
+		} else {
+			log_info(logger, "CREATE ERROR");
+			exit_value = EXIT_FAILURE;
+		}
+	}
+	return false;
+}

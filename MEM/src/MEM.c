@@ -988,8 +988,6 @@ int server_function() {
 					recv(fd, &table_name_size, sizeof(int), 0);
 					table_name = malloc(sizeof(table_name_size) * sizeof(char));
 					recv(fd, table_name, table_name_size * sizeof(char), 0);
-					table_name[table_name_size / sizeof(char)] = '\0';
-					table_name = string_to_upper(table_name);
 
 					int consistency, partitions, compaction_time;
 					recv(fd, &consistency, sizeof(int), 0);
@@ -999,7 +997,7 @@ int server_function() {
 					int creation_result;
 					creation_result = create_mem(table_name, consistency, partitions, compaction_time);
 
-					if(creation_result == true) {
+					if(creation_result == false) {
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					} else {
 						send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
