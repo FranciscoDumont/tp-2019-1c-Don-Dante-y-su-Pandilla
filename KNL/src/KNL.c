@@ -417,23 +417,24 @@ void execute_knl(comando_t* unComando){
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "select no recibio el nombre de la tabla\n");
+			log_info(logger, "Indique el nombre de la Tabla");
 			return;
 		}else if (parametro2[0] == '\0'){
-			log_info(logger, "select no recibio la key\n");
+			log_info(logger, "Indique la key");
 			return;
-		}//else select_knl(parametro1,atoi(parametro2));
-
+		}else {
+			select_knl(parametro1, atoi(parametro2));
+		}
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "insert no recibio el nombre de la tabla\n");
+			log_info(logger, "Indique nombre de Tabla");
 			return;
 		}else if (parametro2[0] == '\0'){
-			log_info(logger, "insert no recibio la key\n");
+			log_info(logger, "Indique la key");
 			return;
 		}else if (parametro3[0] == '\0'){
-			log_info(logger, "insert no recibio el valor\n");
+			log_info(logger, "Indique el valor");
 			return;
 		}else if (parametro4[0] == '\0'){
 			insert_knl(parametro1, atoi(parametro2), parametro3, unix_epoch());
@@ -571,6 +572,60 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 	return false;
 }
 
+_Bool select_knl(char * table_name, int key){
+	MemtableTableReg * tReg = find_table(table_name);
+	if(tReg == null) {
+		log_info(logger, "Tabla no existe");
+		return false;
+	}
+
+	MemPoolData * selected_memory = select_memory_by_table(tReg);
+	if(selected_memory == null) {
+		log_error(logger, "No available memory for table");
+		return false;
+	}
+
+	int memsocket;
+
+	if ((memsocket = create_socket()) == -1) {
+		memsocket = -1;
+	}
+	if (memsocket != -1 && (connect_socket(memsocket, selected_memory->ip, selected_memory->port)) == -1) {
+		memsocket = -1;
+	}
+	if(memsocket == -1) {
+		log_error(logger, "Memory was unreachable");
+		return false;
+	} else {
+		int exit_value;
+		send_data(memsocket, KNL_MEM_SELECT, 0, null);
+
+		int table_name_len = strlen(table_name)+1;
+		send(memsocket, &table_name_len,  sizeof(int), 0);
+		send(memsocket, table_name,       table_name_len * sizeof(char),0);
+
+		send(memsocket, &key, sizeof(int), 0);
+
+		MessageHeader * header = malloc(sizeof(MessageHeader));
+		recieve_header(memsocket, header);
+		if(header->type == OPERATION_SUCCESS) {
+			log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			log_info(logger, "MEM ENVÍA RESULTADO DE SELECT SOLICITADO");
+			int result_len;
+			recv(memsocket, &result_len, sizeof(int), 0);
+			char* value = malloc(sizeof(char) * result_len);
+			recv(memsocket, value, result_len * sizeof(char), 0);
+			log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
+			exit_value = EXIT_SUCCESS;
+			return true;
+		} else {
+			log_info(logger, "SELECT ERROR");
+			return false;
+		}
+	}
+	return false;
+}
+
 
 /*int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
 	log_info(logger, "INICIA CREATE: create_knl(%s, %d, %d, %d)", table_name, consistency, partitions, compaction_time);
@@ -592,36 +647,6 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 		exit_value = EXIT_SUCCESS;
 	} else {
 		log_info(logger, "CREATE ERROR");
-		exit_value = EXIT_FAILURE;
-	}
-	return exit_value;
-}
-
-
-int select_knl(char * table_name, int key){
-	log_info(logger, "INICIA SELECT: select_knl(%s, %d)", table_name, key);
-	int exit_value;
-	send_data(config.a_memory_ip, KNL_MEM_DESCRIBE, 0, null);
-
-	int table_name_len = strlen(table_name)+1;
-	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
-	send(config.a_memory_ip, table_name,       table_name_len,0);
-
-	send(config.a_memory_ip, &key, sizeof(int), 0);
-
-	MessageHeader * header = malloc(sizeof(MessageHeader));
-	recieve_header(config.a_memory_ip, header);
-	if(header->type == OPERATION_SUCCESS) {
-		log_info(logger, "MEM ANSWERED SUCCESFULLY");
-		log_info(logger, "MEM ENVÍA RESULTADO DE SELECT SOLICITADO");
-		int result_len;
-		recv(config.a_memory_ip, &result_len, sizeof(int), 0);
-		char* value = malloc(sizeof(char) * result_len);
-		recv(config.a_memory_ip, value, result_len, 0);
-		log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
-		exit_value = EXIT_SUCCESS;
-	} else {
-		log_info(logger, "SELECT ERROR");
 		exit_value = EXIT_FAILURE;
 	}
 	return exit_value;

@@ -1001,25 +1001,24 @@ int server_function() {
 					table_name = malloc(sizeof(table_name_size) * sizeof(char));
 					recv(fd, table_name, table_name_size * sizeof(char), 0);
 
-					table_name[table_name_size / sizeof(char)] = '\0';
-					table_name = string_to_upper(table_name);
-
-
 					char * select_result;
 					int key_select;
 					recv(fd, &key_select, sizeof(int), 0);
 
 					select_result = select_mem(table_name, key_select);
 
-					if(strcmp(select_result, "UNKNOWN") == 0){
+					log_info(logger, "%s", select_result);
+
+					if(select_result == null) {
+						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					} else if(strcmp(select_result, "UNKNOWN") == 0) {
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}else{
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 						int res_len = strlen(select_result) + 1;
 						send(fd, &res_len, sizeof(int), 0);
-						send(fd, select_result, res_len, 0);
+						send(fd, select_result, res_len * sizeof(char), 0);
 					}
-					//free(select_result)
 					;
 					break;
 				}
@@ -1050,7 +1049,7 @@ int server_function() {
 					_Bool insert_result;
 					insert_result = insert_mem(table_name, key, value, timestamp);
 
-					if(!insert_result){
+					if(insert_result){
 						send_data(fd, OPERATION_FAILURE, 0, null);
 					}else{
 						send_data(fd, OPERATION_SUCCESS, 0, null);
