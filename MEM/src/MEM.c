@@ -942,9 +942,6 @@ int server_function() {
 	void lost(int fd, char * ip, int port) {
 	}
 	void incoming(int fd, char * ip, int port, MessageHeader * header) {
-		int table_name_size;
-		char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
-		//TODO: revisar este malloc ↑, puede ser un "char* table_name;   "?
 		switch(header->type) {
 			case GOSSIPING_REQUEST:
 				;
@@ -967,102 +964,120 @@ int server_function() {
 				}
 				break;
 			case KNL_MEM_CREATE:
-				;
-				log_info(logger, "NEW TABLE WILL BE CREATED");
+				{
+					;
+					log_info(logger, "NEW TABLE WILL BE CREATED");
 
-				recv(fd, &table_name_size, sizeof(int), 0);
+					int table_name_size;
+					char * table_name;
 
-				recv(fd, table_name, table_name_size, 0);
-				table_name[table_name_size / sizeof(char)] = '\0';
-				table_name = string_to_upper(table_name);
+					recv(fd, &table_name_size, sizeof(int), 0);
+					table_name = malloc(sizeof(table_name_size) * sizeof(char));
+					recv(fd, table_name, table_name_size * sizeof(char), 0);
+					table_name[table_name_size / sizeof(char)] = '\0';
+					table_name = string_to_upper(table_name);
 
-				int consistency, partitions, compaction_time;
-				recv(fd, &consistency, sizeof(int), 0);
-				recv(fd, &partitions, sizeof(int), 0);
-				recv(fd, &compaction_time, sizeof(int), 0);
+					int consistency, partitions, compaction_time;
+					recv(fd, &consistency, sizeof(int), 0);
+					recv(fd, &partitions, sizeof(int), 0);
+					recv(fd, &compaction_time, sizeof(int), 0);
 
-				int creation_result;
-				creation_result = create_mem(table_name, consistency, partitions, compaction_time);
+					int creation_result;
+					creation_result = create_mem(table_name, consistency, partitions, compaction_time);
 
-				if(creation_result == true) {
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-				} else {
-					send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
-				}
-				break;
-			case KNL_MEM_SELECT:
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
-
-				table_name[table_name_size / sizeof(char)] = '\0';
-				table_name = string_to_upper(table_name);
-
-
-				char * select_result;
-				int key_select;
-				recv(fd, &key_select, sizeof(int), 0);
-
-				select_result = select_mem(table_name, key_select);
-
-				if(strcmp(select_result, "UNKNOWN") == 0){
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
-				}else{
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-					int res_len = strlen(select_result) + 1;
-					send(fd, &res_len, sizeof(int), 0);
-					send(fd, select_result, res_len, 0);
-				}
-				//free(select_result)
-				;
-				break;
-			case KNL_MEM_INSERT:
-				//int insert_fs(char * table_name, int key, char * value, unsigned long timestamp)
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
-
-				table_name[table_name_size / sizeof(char)] = '\0';
-				table_name = string_to_upper(table_name);
-
-				int key;
-				int value_len;
-				char * value;
-				unsigned long timestamp;
-				recv(fd, &key, sizeof(int), 0);
-				recv(fd, &value_len, sizeof(int), 0);
-				recv(fd, value, value_len, 0);
-				recv(fd, &timestamp, sizeof(long), 0);
-				if(value_len > config.value_size){
-					log_error(logger, "El valor recibido(%d) es mas grande que el config.value_size(%d)", value_len, config.value_size);
-					send_data(fd, VALUE_SIZE_ERROR, 0, null);
+					if(creation_result == true) {
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+					} else {
+						send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
+					}
 					break;
 				}
+			case KNL_MEM_SELECT:
+				{
+					int table_name_size;
+					char * table_name;
 
-				int insert_result;
-				insert_result = insert_mem(table_name, key, &value, timestamp);
+					recv(fd, &table_name_size, sizeof(int), 0);
+					table_name = malloc(sizeof(table_name_size) * sizeof(char));
+					recv(fd, table_name, table_name_size * sizeof(char), 0);
 
-				if(insert_result == 0){
-					send_data(fd, OPERATION_FAILURE, 0, null);
-				}else{
-					send_data(fd, OPERATION_SUCCESS, 0, null);
+					table_name[table_name_size / sizeof(char)] = '\0';
+					table_name = string_to_upper(table_name);
+
+
+					char * select_result;
+					int key_select;
+					recv(fd, &key_select, sizeof(int), 0);
+
+					select_result = select_mem(table_name, key_select);
+
+					if(strcmp(select_result, "UNKNOWN") == 0){
+						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					}else{
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+						int res_len = strlen(select_result) + 1;
+						send(fd, &res_len, sizeof(int), 0);
+						send(fd, select_result, res_len, 0);
+					}
+					//free(select_result)
+					;
+					break;
 				}
+			case KNL_MEM_INSERT:
+				{
+					int table_name_size;
+					char * table_name;
 
-				//free(value);
-				;
-				break;
+					recv(fd, &table_name_size, sizeof(int), 0);
+					table_name = malloc(sizeof(table_name_size) * sizeof(char));
+					recv(fd, table_name, table_name_size * sizeof(char), 0);
+
+					int key;
+					int value_len;
+					char * value;
+					unsigned long timestamp;
+					recv(fd, &key, sizeof(int), 0);
+					recv(fd, &value_len, sizeof(int), 0);
+					value = malloc(value_len * sizeof(char));
+					recv(fd, value, value_len * sizeof(char), 0);
+					recv(fd, &timestamp, sizeof(long), 0);
+					if(value_len > config.value_size){
+						log_error(logger, "El valor recibido(%d) es mas grande que el config.value_size(%d)", value_len, config.value_size);
+						send_data(fd, VALUE_SIZE_ERROR, 0, null);
+						break;
+					}
+
+					_Bool insert_result;
+					insert_result = insert_mem(table_name, key, value, timestamp);
+
+					if(!insert_result){
+						send_data(fd, OPERATION_FAILURE, 0, null);
+					}else{
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+					}
+					;
+					break;
+				}
 			case KNL_MEM_DROP:
-				;
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
+				{
+					;
+					int table_name_size;
+					char * table_name;
 
-				int drop_result = drop_mem(table_name);
+					recv(fd, &table_name_size, sizeof(int), 0);
+					table_name = malloc(sizeof(table_name_size) * sizeof(char));
+					recv(fd, table_name, table_name_size * sizeof(char), 0);
 
-				if(drop_result == true){
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-				}else{
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					int drop_result = drop_mem(table_name);
+
+					if(drop_result == true){
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+					}else{
+						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					}
+
+					break;
 				}
-
-				break;
 			case KNL_MEM_JOURNAL:
 				;
 				journal();

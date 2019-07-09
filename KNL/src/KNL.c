@@ -31,10 +31,11 @@ void metadata_refresh_loop();
 void refresh_metadata(_Bool print_x_screen);
 
 //TODO: Implementar luego
-int insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
-int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
-int select_knl(char * table_name, int key);
-int drop_knl(char * table_name);
+_Bool insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
+_Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
+_Bool select_knl(char * table_name, int key);
+_Bool drop_knl(char * table_name);
+
 void execute_knl(comando_t* unComando);
 void info();
 void consola_knl();
@@ -435,8 +436,10 @@ void execute_knl(comando_t* unComando){
 			log_info(logger, "insert no recibio el valor\n");
 			return;
 		}else if (parametro4[0] == '\0'){
-			//insert_knl(parametro1,atoi(parametro2),parametro3,unix_epoch());
-		}//else insert_knl(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+			insert_knl(parametro1, atoi(parametro2), parametro3, unix_epoch());
+		}else {
+			insert_knl(parametro1, atoi(parametro2), parametro3, strtoul(parametro4,NULL,10));
+		}
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
 		if(parametro1[0] == '\0'){
@@ -499,41 +502,77 @@ void execute_knl(comando_t* unComando){
 	}
 }
 
-
-
-//API
-/*int insert_knl(char * table_name, int key, char * value, unsigned long timestamp){
-	log_info(logger, "INICIA INSERT: insert_knl(%s, %d, %s, %lu)", table_name, key, value, timestamp);
-	int exit_value;
-	send_data(config.a_memory_ip, KNL_MEM_INSERT, 0, null);
-
-	int table_name_len = strlen(table_name)+1;
-	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
-	send(config.a_memory_ip, table_name,       table_name_len,0);
-
-	send(config.a_memory_ip, &key, sizeof(int), 0);
-
-	int value_len = strlen(value)+1;
-	send(config.a_memory_ip, &value_len,  sizeof(int), 0);
-	send(config.a_memory_ip, value,       value_len,0);
-
-	send(config.a_memory_ip, &timestamp, sizeof(long), 0);
-
-
-	MessageHeader * header = malloc(sizeof(MessageHeader));
-	recieve_header(config.a_memory_ip, header);
-	if(header->type == OPERATION_SUCCESS) {
-		log_info(logger, "MEM ANSWERED SUCCESFULLY");
-		exit_value = EXIT_SUCCESS;
-	} else {
-		log_info(logger, "INSERT ERROR");
-		exit_value = EXIT_FAILURE;
+MemtableTableReg * find_table(char * name) {
+	_Bool is_selected(MemtableTableReg * t) {
+		return strcmp(t->table_name, name) == 0;
 	}
-	return exit_value;
+	return list_find(tables_dict, is_selected);
+}
+
+MemPoolData * select_memory_by_table(MemtableTableReg * table) {
+	//TODO
+	return list_get(gossiping_list, 0);
 }
 
 
-int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
+
+//API
+_Bool insert_knl(char * table_name, int key, char * value, unsigned long timestamp){
+	MemtableTableReg * tReg = find_table(table_name);
+	if(tReg == null) {
+		log_info(logger, "Tabla no existe");
+		return false;
+	}
+
+	MemPoolData * selected_memory = select_memory_by_table(tReg);
+	if(selected_memory == null) {
+		log_error(logger, "No available memory for table");
+		return false;
+	}
+
+	int memsocket;
+
+	if ((memsocket = create_socket()) == -1) {
+		memsocket = -1;
+	}
+	if (memsocket != -1 && (connect_socket(memsocket, selected_memory->ip, selected_memory->port)) == -1) {
+		memsocket = -1;
+	}
+	if(memsocket == -1) {
+		log_error(logger, "Memory was unreachable");
+		return false;
+	} else {
+		int exit_value;
+		send_data(memsocket, KNL_MEM_INSERT, 0, null);
+
+		int table_name_len = strlen(table_name)+1;
+		send(memsocket, &table_name_len,  sizeof(int), 0);
+		send(memsocket, table_name,       table_name_len * sizeof(char),0);
+
+		send(memsocket, &key, sizeof(int), 0);
+
+		int value_len = strlen(value)+1;
+		send(memsocket, &value_len,  sizeof(int), 0);
+		send(memsocket, value,       value_len * sizeof(char),0);
+
+		send(memsocket, &timestamp, sizeof(long), 0);
+
+		MessageHeader * header = malloc(sizeof(MessageHeader));
+		recieve_header(memsocket, header);
+		if(header->type == OPERATION_SUCCESS) {
+			log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			return true;
+		} else {
+			log_info(logger, "INSERT ERROR");
+			return false;
+		}
+	}
+
+	return false;
+}
+
+
+/*int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
 	log_info(logger, "INICIA CREATE: create_knl(%s, %d, %d, %d)", table_name, consistency, partitions, compaction_time);
 	int exit_value;
 	send_data(config.a_memory_ip, KNL_MEM_CREATE, 0, null);
