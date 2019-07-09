@@ -3,13 +3,21 @@
 t_log * logger;
 t_config * config_file = null;
 KNLConfig config;
-int mysocket; //TODO: esto deberia estar en el config de kernel? 🤔
-int port = 6969; //TODO: esto deberia estar en el config de kernel? 🤔
 
 t_list * gossiping_list;
 
+t_list * new_queue;
+t_list * ready_queue;
+t_list * exit_queue;
+t_list * exec_threads;
+
+unsigned int lql_max_id;
+
+pthread_mutex_t ready_queue_mutex;
+
 void gossiping_start(pthread_t * thread);
-void server_start(pthread_t * thread);
+void running();
+_Bool exec_lql_line(LQLScript * lql);
 
 //TODO: Implementar luego
 int insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
@@ -27,8 +35,17 @@ int main(int argc, char **argv) {
 	} else {
 		config_file = config_create(argv[1]);
 	}
+	int qa;
 
 	gossiping_list = list_create();
+	new_queue = list_create();
+	ready_queue = list_create();
+	exit_queue = list_create();
+	exec_threads = list_create();
+
+	lql_max_id = 0;
+
+	init_normal_mutex(&ready_queue_mutex, "READY_QUEUE");
 
 	config.a_memory_ip = config_get_string_value(config_file, "IP_MEMORIA");
 	config.a_memory_port = config_get_int_value(config_file, "PUERTO_MEMORIA");
@@ -36,23 +53,84 @@ int main(int argc, char **argv) {
 	config.multiprocessing_grade = config_get_int_value(config_file, "MULTIPROCESAMIENTO");
 	config.metadata_refresh = config_get_int_value(config_file, "METADATA_REFRESH");
 	config.exec_delay = config_get_int_value(config_file, "SLEEP_EJECUCION");
+	config.current_multiprocessing = 0;
 
 	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
 
-	pthread_t thread_g;
-	gossiping_start(&thread_g);
 
-	pthread_t thread_server;
-	server_start(&thread_server);
+
+	pthread_t thread_g;
+	//gossiping_start(&thread_g);
+
+	run_knl("hola.01");
+
+	for(qa = 0 ; qa < config.multiprocessing_grade ; qa++) {
+		pthread_t thread_r;
+		pthread_create(&thread_r, NULL, running, qa);
+		list_add(exec_threads, &thread_r);
+	}
 
 	pthread_t knl_console_id;
 	pthread_create(&knl_console_id, NULL, consola_knl, NULL);
 
 	pthread_detach(thread_g);
-	pthread_detach(thread_server);
-	pthread_join(knl_console_id, NULL);
+	for(qa = 0 ; qa < config.multiprocessing_grade ; qa++) {
+		pthread_t * t = list_get(exec_threads, qa);
+		pthread_join(*t, NULL);
+	}
 
 	return EXIT_SUCCESS;
+}
+
+void running(int n) {
+	LQLScript * this_core_lql = null;
+	while(1) {
+		if(this_core_lql == null) {
+			lock_mutex(&ready_queue_mutex);
+			if(ready_queue->elements_count != 0) {
+				this_core_lql = list_get(ready_queue, 0);
+				list_remove(ready_queue, 0);
+			}
+			unlock_mutex(&ready_queue_mutex);
+		}
+		if(this_core_lql != null) {
+			this_core_lql->state = EXEC;
+			log_info(logger, "RUNNING THREAD %d - LQL %d\n", n, this_core_lql->lqlid);
+			if(exec_lql_line(this_core_lql)) {
+				this_core_lql->quantum_counter++;
+				if(feof(this_core_lql->file)) {
+					//EXIT X FEOF
+					this_core_lql->state = EXIT;
+					list_add(exit_queue, this_core_lql);
+					this_core_lql = null;
+					log_info(logger, "  EXIT X FEOF\n");
+				} else {
+					if(this_core_lql->quantum_counter == config.quantum) {
+						//EXIT X QUANTUM
+						lock_mutex(&ready_queue_mutex);
+							this_core_lql->state = READY;
+							list_add(ready_queue, this_core_lql);
+						unlock_mutex(&ready_queue_mutex);
+						this_core_lql = null;
+						log_info(logger, "  EXIT X QUANTUM\n");
+					} else {
+						//CONTINUE
+						log_info(logger, "  CONTINUES\n");
+					}
+				}
+			} else {
+				//ERROR
+				this_core_lql->state = EXIT;
+				list_add(exit_queue, this_core_lql);
+				this_core_lql = null;
+				log_info(logger, "  EXIT X ERROR\n");
+			}
+		} else {
+			log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
+			sleep(13);
+		}
+		//sleep(config.exec_delay/1000);
+	}
 }
 
 //API
@@ -197,6 +275,51 @@ int drop_knl(char * table_name){
 	return exit_value;
 }
 
+void run_knl(char * filepath) {
+	LQLScript * lql = malloc(sizeof(LQLScript));
+	lql->state = NEW;
+	lql->lqlid = lql_max_id++;
+	list_add(new_queue, lql);
+
+	create_lql(lql, filepath);
+	_Bool is_same_pointer(void * _lql) {
+		return _lql == lql;
+	}
+	list_remove_by_condition(new_queue, is_same_pointer);
+	lock_mutex(&ready_queue_mutex);
+	list_add(ready_queue, lql);
+	lql->state = READY;
+	unlock_mutex(&ready_queue_mutex);
+}
+
+_Bool exec_lql_line(LQLScript * lql) {
+	Instruction * i = parse_lql_line(lql);
+
+	print_op_debug(i);
+
+	return true;
+}
+
+void print_op_debug(Instruction * i) {
+	switch(i->i_type) {
+		case CREATE:
+			printf("CREATE %s %s %d %d", i->table_name, consistency_to_char(i->c_type), i->partitions, i->compaction_time);
+			break;
+		case SELECT:
+			printf("SELECT %s %d", i->table_name, i->key);
+			break;
+		case INSERT:
+			printf("INSERT %s %d %s", i->table_name, i->key, i->value);
+			break;
+		case DESCRIBE:
+			printf("DESCRIBE %s", i->table_name);
+			break;
+		case DROP:
+			printf("DROP %s", i->table_name);
+			break;
+	}
+}
+
 
 //Gossiping
 void inform_gossiping_pool() {
@@ -274,53 +397,6 @@ void gossiping_start(pthread_t * thread) {
 }
 
 //Server
-int server_function() {
-	if((mysocket = create_socket()) == -1) {
-		return EXIT_FAILURE;
-	}
-	if((bind_socket(mysocket, port)) == -1) {
-		return EXIT_FAILURE;
-	}
-
-	void new(int fd, char * ip, int port) {
-
-	}
-	void lost(int fd, char * ip, int port) {
-
-	}
-	void incoming(int fd, char * ip, int port, MessageHeader * header) {
-		switch(header->type) {
-			/*
-			case GOSSIPING_REQUEST:
-				;
-				log_info(logger, "gossiping request");
-				send(fd, &config.memory_id, sizeof(int), 0);
-
-				int gossiping_count = gossiping_list->elements_count;
-				int a;
-				send(fd, &gossiping_count, sizeof(int), 0);
-
-				log_error(logger, "GONNA PASS %d", gossiping_count);
-				for(a = 0 ; a < gossiping_count ; a++) {
-					MemPoolData * this_mem = list_get(gossiping_list, a);
-
-					log_info(logger, "   %d %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
-
-					send(fd, &this_mem->port, sizeof(int), 0);
-					send(fd, &this_mem->memory_id, sizeof(int), 0);
-					send(fd, this_mem->ip, sizeof(char) * IP_LENGTH, 0);
-				}
-
-				break;
-				*/
-		}
-	}
-	start_server(mysocket, &new, &lost, &incoming);
-}
-void server_start(pthread_t * thread) {
-	pthread_create(thread, NULL, server_function, NULL);
-}
-
 void consola_knl(){
 	crear_consola(execute_knl, "Kernel");
 }
@@ -346,23 +422,23 @@ void execute_knl(comando_t* unComando){
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
 		if(parametro1[0] == '\0'){
-			printf("select no recibio el nombre de la tabla\n");
+			log_info(logger, "select no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("select no recibio la key\n");
+			log_info(logger, "select no recibio la key\n");
 			return;
 		}//else select_knl(parametro1,atoi(parametro2));
 
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
 		if(parametro1[0] == '\0'){
-			printf("insert no recibio el nombre de la tabla\n");
+			log_info(logger, "insert no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("insert no recibio la key\n");
+			log_info(logger, "insert no recibio la key\n");
 			return;
 		}else if (parametro3[0] == '\0'){
-			printf("insert no recibio el valor\n");
+			log_info(logger, "insert no recibio el valor\n");
 			return;
 		}else if (parametro4[0] == '\0'){
 //			insert_knl(parametro1,atoi(parametro2),parametro3,unix_epoch());
@@ -371,16 +447,16 @@ void execute_knl(comando_t* unComando){
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
 		if(parametro1[0] == '\0'){
-			printf("create no recibio el nombre de la tabla\n");
+			log_info(logger, "create no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("create no recibio el tipo de consistencia\n");
+			log_info(logger, "create no recibio el tipo de consistencia\n");
 			return;
 		}else if (parametro3[0] == '\0'){
-			printf("create no recibio la particion\n");
+			log_info(logger, "create no recibio la particion\n");
 			return;
 		}else if (parametro4[0] == '\0'){
-			printf("create no recibio el tiempo de compactacion\n");
+			log_info(logger, "create no recibio el tiempo de compactacion\n");
 			return;
 		}//else create_knl(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
 	
@@ -392,7 +468,7 @@ void execute_knl(comando_t* unComando){
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
-			printf("drop no recibio el nombre de la tabla\n");
+			log_info(logger, "drop no recibio el nombre de la tabla\n");
 		}//else drop_knl(parametro1);
 
 	//INFO

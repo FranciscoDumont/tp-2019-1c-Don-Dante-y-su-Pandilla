@@ -21,7 +21,7 @@ typedef enum _MutexDebugLevel {
 	MX_ONLY_LOCK_UNLOCK,
 	MX_ALL_DISPLAY
 } MutexDebugLevel;
-MutexDebugLevel MUTEX_DEBUG_LEVEL = MX_ONLY_LOCK_UNLOCK;
+MutexDebugLevel MUTEX_DEBUG_LEVEL = MX_NO_DISPLAY;
 
 
 
@@ -173,6 +173,8 @@ typedef struct _Instruction {
 	int partitions;
 	unsigned long compaction_time;
 	unsigned long timestamp;
+
+	char * knl_line;
 } Instruction;
 
 //Kernel
@@ -183,6 +185,8 @@ typedef struct _KNLConfig {
 	int multiprocessing_grade;
 	int metadata_refresh;
 	int exec_delay;
+
+	int current_multiprocessing;
 } KNLConfig;
 
 typedef struct {
@@ -190,11 +194,21 @@ typedef struct {
 	char parametro[5][20];
 } comando_t;
 
+typedef enum {
+	NEW,
+	READY,
+	EXEC,
+	EXIT
+} LQLState;
+
 typedef struct _lql {
 	FILE * file;
 	char * line;
 	size_t len;
 	ssize_t read;
+	LQLState state;
+	int quantum_counter;
+	unsigned int lqlid;
 } LQLScript;
 
 

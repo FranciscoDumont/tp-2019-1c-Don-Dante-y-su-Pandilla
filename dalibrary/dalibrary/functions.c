@@ -532,22 +532,42 @@ void create_lql(LQLScript * script, char * filepath) {
 	script->file = fopen(filepath, "r");
 	script->line = NULL;
 	script->len = 0;
+	script->quantum_counter = 0;
 }
 
 Instruction * parse_lql_line(LQLScript * script) {
-	Instruction * i = null;
-
+	Instruction * i = null; int a, t;
 	if ((script->read = getline(&script->line, &script->len, script->file)) != -1) {
 
 		char * line = script->line;
+
 		if(line == NULL || string_equals_ignore_case(line, "")){
 			printf("ERROR");
-			return i;
+			return null;
 		}
 
-		char* auxLine = string_duplicate(line);
+		t = strlen(line);
+		char * auxLine = malloc((t + 1) * sizeof(char));
+		for(a=0 ; a<t ; a++) {
+			auxLine[a] = line[a];
+		}
+		auxLine[a] = '\0';
+
 		string_trim(&auxLine);
-		char** split = string_n_split(auxLine, 3, " ");
+
+		a=0;
+		char ** split = malloc(512);
+
+		char * content = auxLine;
+		char * buffer  = malloc(sizeof(char) * strlen(content));
+		buffer[0] = '\0';
+
+		char * token;
+		for (token = strtok_r(content, " ", &buffer) ;
+				token != NULL ;
+				token = strtok_r(buffer, " ", &buffer)) {
+			split[a++] = token;
+		}
 
 		i = malloc(sizeof(Instruction));
 
@@ -561,10 +581,8 @@ Instruction * parse_lql_line(LQLScript * script) {
 			i->i_type = INSERT;
 			i->table_name = split[1];
 
-			char** local_split = string_n_split(split[2], 2, " ");
-
-			i->key = atoi(local_split[0]);
-			i->value = local_split[1];
+			i->key = atoi(split[2]);
+			i->value = split[3];
 			i->value = i->value+1;
 			i->value[strlen(i->value)-1] = '\0';
 
@@ -573,11 +591,9 @@ Instruction * parse_lql_line(LQLScript * script) {
 			i->i_type = CREATE;
 			i->table_name = split[1];
 
-			char** local_split = string_n_split(split[2], 3, " ");
-
-			i->c_type = char_to_consistency(local_split[0]);
-			i->partitions = atoi(local_split[1]);
-			i->compaction_time = strtoul(local_split[2], NULL, 0);
+			i->c_type = char_to_consistency(split[2]);
+			i->partitions = atoi(split[3]);
+			i->compaction_time = strtoul(split[4], NULL, 0);
 
 			//printf("CRE %s %d %d %ul\n", i->table_name, i->c_type, i->partitions, i->compaction_time);
 		}else if(strcmp(split[0], "DESCRIBE") == 0) {
@@ -593,9 +609,11 @@ Instruction * parse_lql_line(LQLScript * script) {
 		} else {
 			printf("UNSOPORTED %s", auxLine);
 		}
+
+		i->knl_line = auxLine;
 	} else {
 		printf("ERROR");
-		return i;
+		return null;
 	}
 	return i;
 }
