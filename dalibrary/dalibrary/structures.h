@@ -220,6 +220,7 @@ typedef struct _lql {
 typedef struct _consistency_criterion {
 	ConsistencyTypes type;
 	t_list * memories;
+	int rr_next_to_use;
 	unsigned long metrics_start_measure;
 	int read_acum_times;
 	int read_acum_count;

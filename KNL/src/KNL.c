@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
 	CriterionEventual.type = EVENTUAL_CONSISTENCY;
 	CriterionEventual.memories = list_create();
 	CriterionEventual.metrics_start_measure = unix_epoch();
+	CriterionEventual.rr_next_to_use = 0;
 
 	CriterionHash.type = STRONG_HASH_CONSISTENCY;
 	CriterionHash.memories = list_create();
@@ -539,7 +540,28 @@ MemtableTableReg * find_table(char * name) {
 
 MemPoolData * select_memory_by_table(MemtableTableReg * table) {
 	//TODO
-	return list_get(gossiping_list, 0);
+	switch(table->consistency) {
+	case STRONG_CONSISTENCY:
+		if(CriterionStrong.memories->elements_count == 0)
+			return null;
+		return list_get(CriterionStrong.memories, 0);
+		break;
+	case STRONG_HASH_CONSISTENCY:
+		if(CriterionEventual.rr_next_to_use >= CriterionEventual.memories->elements_count) {
+			CriterionEventual.rr_next_to_use = 0;
+			if(CriterionEventual.memories->elements_count != 0) {
+				CriterionEventual.rr_next_to_use++;
+				return list_get(CriterionEventual.memories, 0);
+			}
+		} else {
+			CriterionEventual.rr_next_to_use++;
+			return list_get(CriterionEventual.memories, (CriterionEventual.rr_next_to_use-1));
+		}
+		break;
+	case EVENTUAL_CONSISTENCY:
+		break;
+	}
+	return null;
 }
 
 
