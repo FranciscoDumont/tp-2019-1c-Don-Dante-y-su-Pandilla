@@ -476,7 +476,7 @@ void execute_knl(comando_t* unComando){
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "drop no recibio el nombre de la tabla\n");
+			log_info(logger, "Indique el nombre de la Tabla");
 		}else {
 			drop_knl(parametro1);
 		}
@@ -499,8 +499,18 @@ void execute_knl(comando_t* unComando){
 				}
 			}
 		}
-	//INFO
-	}else if (strcmp(comandoPrincipal,"info")==0){
+	}else if (strcmp(comandoPrincipal,"journal")==0){
+		journal_to_criterions_memories();
+		printf("Journal Realizado");
+	} else if (strcmp(comandoPrincipal,"run")==0){
+		if(parametro1[0] == '\0'){
+			log_info(logger, "Indique el LQL a ejecutar");
+		}else {
+			run_knl(parametro1);
+		}
+	} else if (strcmp(comandoPrincipal,"metrics")==0){
+
+	} else if (strcmp(comandoPrincipal,"info")==0){
 		//info();
 	}
 }
