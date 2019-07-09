@@ -39,16 +39,6 @@ int main(int argc, char **argv) {
 
 	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
 
-	LQLScript script;
-	create_lql(&script, "script.lql");
-
-	while(!feof(script.file))
-		parse_lql_line(&script);
-
-
-	exit(0);
-
-
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
 
