@@ -6,6 +6,11 @@ KNLConfig config;
 
 t_list * gossiping_list;
 
+t_list * tables_dict;
+
+unsigned int lql_max_id;
+pthread_mutex_t ready_queue_mutex;
+
 t_list * new_queue;
 t_list * ready_queue;
 t_list * exit_queue;
@@ -15,15 +20,11 @@ ConsistencyCriterion CriterionStrong;
 ConsistencyCriterion CriterionEventual;
 ConsistencyCriterion CriterionHash;
 
-t_list * tables_dict;
-
-unsigned int lql_max_id;
-
-pthread_mutex_t ready_queue_mutex;
-
-void gossiping_start(pthread_t * thread);
+MemPoolData * getMemoryData(int id);
 void running();
 _Bool exec_lql_line(LQLScript * lql);
+void print_op_debug(Instruction * i);
+void gossiping_start(pthread_t * thread);
 
 //TODO: Implementar luego
 int insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
@@ -74,10 +75,8 @@ int main(int argc, char **argv) {
 
 	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
 
-
-
 	pthread_t thread_g;
-	//gossiping_start(&thread_g);
+	gossiping_start(&thread_g);
 
 	run_knl("hola.01");
 
@@ -152,6 +151,7 @@ void running(int n) {
 _Bool add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
 	MemPoolData * memory = getMemoryData(memory_id);
 	if(memory == null) {
+		log_info(logger, "ERROR, Memory %d NOT found", memory_id);
 		return false;
 	}
 	switch(type) {
@@ -192,25 +192,6 @@ void run_knl(char * filepath) {
 	unlock_mutex(&ready_queue_mutex);
 }
 
-_Bool exec_lql_line(LQLScript * lql) {
-	Instruction * i = parse_lql_line(lql);
-
-	print_op_debug(i);
-	switch(i->i_type) {
-		case CREATE:
-			break;
-		case SELECT:
-			break;
-		case INSERT:
-			break;
-		case DESCRIBE:
-			break;
-		case DROP:
-			break;
-
-	return true;
-}
-
 void print_op_debug(Instruction * i) {
 	switch(i->i_type) {
 		case CREATE:
@@ -231,8 +212,195 @@ void print_op_debug(Instruction * i) {
 	}
 }
 
+_Bool exec_lql_line(LQLScript * lql) {
+	Instruction * i = parse_lql_line(lql);
+
+	print_op_debug(i);
+	switch(i->i_type) {
+		case CREATE:
+			break;
+		case SELECT:
+			break;
+		case INSERT:
+			break;
+		case DESCRIBE:
+			break;
+		case DROP:
+			break;
+	}
+	return true;
+}
+
+void journal_to_memories_list(t_list * memories) {
+
+}
+
+void journal_to_criterions_memories() {
+	journal_to_memories_list(CriterionEventual.memories);
+	journal_to_memories_list(CriterionHash.memories);
+	journal_to_memories_list(CriterionStrong.memories);
+}
+
+//Gossiping
+void inform_gossiping_pool() {
+	log_info(logger, "GOSSIPING LIST START");
+
+	int a;
+	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
+		MemPoolData * this_mem = list_get(gossiping_list, a);
+		log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
+	}
+
+	log_info(logger, "GOSSIPING LIST END");
+}
+void add_to_pool(MemPoolData * mem) {
+	int a;
+	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
+		MemPoolData * this_mem = list_get(gossiping_list, a);
+		if(this_mem->memory_id == mem->memory_id) {
+			return;
+		}
+	}
+	list_add(gossiping_list, mem);
+}
+void gossiping_thread() {
+	while(1) {
+		list_clean(gossiping_list);
+
+		//Contact known seed
+		int memsocket;
+		MemPoolData * this_seed = malloc(sizeof(MemPoolData));
+		this_seed->ip = malloc(sizeof(char) * IP_LENGTH);
+		this_seed->port = config.a_memory_port;
+		strcpy(this_seed->ip, config.a_memory_ip);
+
+		if ((memsocket = create_socket()) == -1) {
+			memsocket = -1;
+		}
+		if (memsocket != -1 && (connect_socket(memsocket, this_seed->ip, this_seed->port)) == -1) {
+			memsocket = -1;
+		}
+
+		log_info(logger, "requesting to %s %d", this_seed->ip, this_seed->port);
+		if(memsocket != -1) {
+			send_data(memsocket, GOSSIPING_REQUEST, 0, NULL);
+			recv(memsocket, &(this_seed->memory_id), sizeof(int), 0);
+			log_info(logger, "   ITS %d", this_seed->memory_id);
+
+			add_to_pool(this_seed);
+
+			int torecieve, a;
+			recv(memsocket, &torecieve, sizeof(int), 0);
+			for(a = 0 ; a < torecieve ; a++) {
+				MemPoolData * this_mem = malloc(sizeof(MemPoolData));
+				this_mem->ip = malloc(sizeof(char) * IP_LENGTH);
+
+				recv(memsocket, &this_mem->port, sizeof(int), 0);
+				recv(memsocket, &this_mem->memory_id, sizeof(int), 0);
+				recv(memsocket, this_mem->ip, sizeof(char) * IP_LENGTH, 0);
+
+				log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
+
+				add_to_pool(this_mem);
+			}
+		}
+
+		close(memsocket);
+
+		//inform_gossiping_pool();
+
+		sleep(config.metadata_refresh / 1000);
+	}
+}
+void gossiping_start(pthread_t * thread) {
+	pthread_create(thread, NULL, gossiping_thread, NULL);
+}
+
+//Server
+void consola_knl(){
+	crear_consola(execute_knl, "Kernel");
+}
+
+//TODO: Completar cuando se tenga la implementacion de las funciones
+void execute_knl(comando_t* unComando){
+	char comandoPrincipal[20];
+	char parametro1[20];
+	char parametro2[20];
+	char parametro3[20];
+	char parametro4[20];
+	char parametro5[20];
+
+	imprimir_comando(unComando);
+
+	strcpy(comandoPrincipal,unComando->comando);
+	strcpy(parametro1,unComando->parametro[0]);
+	strcpy(parametro2,unComando->parametro[1]);
+	strcpy(parametro3,unComando->parametro[2]);
+	strcpy(parametro4,unComando->parametro[3]);
+	strcpy(parametro5,unComando->parametro[4]);
+
+	//SELECT
+	if(strcmp(comandoPrincipal,"select")==0){
+		if(parametro1[0] == '\0'){
+			log_info(logger, "select no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			log_info(logger, "select no recibio la key\n");
+			return;
+		}//else select_knl(parametro1,atoi(parametro2));
+
+	//INSERT
+	}else if (strcmp(comandoPrincipal,"insert")==0){
+		if(parametro1[0] == '\0'){
+			log_info(logger, "insert no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			log_info(logger, "insert no recibio la key\n");
+			return;
+		}else if (parametro3[0] == '\0'){
+			log_info(logger, "insert no recibio el valor\n");
+			return;
+		}else if (parametro4[0] == '\0'){
+//			insert_knl(parametro1,atoi(parametro2),parametro3,unix_epoch());
+		}//else insert_knl(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
+
+	//CREATE
+	}else if (strcmp(comandoPrincipal,"create")==0){
+		if(parametro1[0] == '\0'){
+			log_info(logger, "create no recibio el nombre de la tabla\n");
+			return;
+		}else if (parametro2[0] == '\0'){
+			log_info(logger, "create no recibio el tipo de consistencia\n");
+			return;
+		}else if (parametro3[0] == '\0'){
+			log_info(logger, "create no recibio la particion\n");
+			return;
+		}else if (parametro4[0] == '\0'){
+			log_info(logger, "create no recibio el tiempo de compactacion\n");
+			return;
+		}//else create_knl(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
+	
+	//DESCRIBE
+	}else if (strcmp(comandoPrincipal,"describe")==0){
+		//chekea si parametro es nulo adentro de describe_knl
+//		describe_knl(parametro1);
+
+	//DROP
+	}else if (strcmp(comandoPrincipal,"drop")==0){
+		if(parametro1[0] == '\0'){
+			log_info(logger, "drop no recibio el nombre de la tabla\n");
+		}//else drop_knl(parametro1);
+
+	//INFO
+	}else if (strcmp(comandoPrincipal,"info")==0){
+//		info();
+	}
+}
+
+
+
 //API
-int insert_knl(char * table_name, int key, char * value, unsigned long timestamp){
+/*int insert_knl(char * table_name, int key, char * value, unsigned long timestamp){
 	log_info(logger, "INICIA INSERT: insert_knl(%s, %d, %s, %lu)", table_name, key, value, timestamp);
 	int exit_value;
 	send_data(config.a_memory_ip, KNL_MEM_INSERT, 0, null);
@@ -371,161 +539,4 @@ int drop_knl(char * table_name){
 	}
 
 	return exit_value;
-}
-
-//Gossiping
-void inform_gossiping_pool() {
-	log_info(logger, "GOSSIPING LIST START");
-
-	int a;
-	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
-		MemPoolData * this_mem = list_get(gossiping_list, a);
-		log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
-	}
-
-	log_info(logger, "GOSSIPING LIST END");
-}
-void add_to_pool(MemPoolData * mem) {
-	int a;
-	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
-		MemPoolData * this_mem = list_get(gossiping_list, a);
-		if(this_mem->memory_id == mem->memory_id) {
-			return;
-		}
-	}
-	list_add(gossiping_list, mem);
-}
-void gossiping_thread() {
-	while(1) {
-		list_clean(gossiping_list);
-
-		//Contact known seed
-		int memsocket;
-		MemPoolData * this_seed = malloc(sizeof(MemPoolData));
-		this_seed->ip = malloc(sizeof(char) * IP_LENGTH);
-		this_seed->port = config.a_memory_port;
-		strcpy(this_seed->ip, config.a_memory_ip);
-
-		if ((memsocket = create_socket()) == -1) {
-			memsocket = -1;
-		}
-		if (memsocket != -1 && (connect_socket(memsocket, this_seed->ip, this_seed->port)) == -1) {
-			memsocket = -1;
-		}
-
-		log_info(logger, "requesting to %s %d", this_seed->ip, this_seed->port);
-		if(memsocket != -1) {
-			send_data(memsocket, GOSSIPING_REQUEST, 0, NULL);
-			recv(memsocket, &(this_seed->memory_id), sizeof(int), 0);
-			log_info(logger, "   ITS %d", this_seed->memory_id);
-
-			add_to_pool(this_seed);
-
-			int torecieve, a;
-			recv(memsocket, &torecieve, sizeof(int), 0);
-			for(a = 0 ; a < torecieve ; a++) {
-				MemPoolData * this_mem = malloc(sizeof(MemPoolData));
-				this_mem->ip = malloc(sizeof(char) * IP_LENGTH);
-
-				recv(memsocket, &this_mem->port, sizeof(int), 0);
-				recv(memsocket, &this_mem->memory_id, sizeof(int), 0);
-				recv(memsocket, this_mem->ip, sizeof(char) * IP_LENGTH, 0);
-
-				log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
-
-				add_to_pool(this_mem);
-			}
-		}
-
-		close(memsocket);
-
-		inform_gossiping_pool();
-
-		sleep(config.metadata_refresh / 1000);
-	}
-}
-void gossiping_start(pthread_t * thread) {
-	pthread_create(thread, NULL, gossiping_thread, NULL);
-}
-
-//Server
-void consola_knl(){
-	crear_consola(execute_knl, "Kernel");
-}
-
-//TODO: Completar cuando se tenga la implementacion de las funciones
-void execute_knl(comando_t* unComando){
-	char comandoPrincipal[20];
-	char parametro1[20];
-	char parametro2[20];
-	char parametro3[20];
-	char parametro4[20];
-	char parametro5[20];
-
-	imprimir_comando(unComando);
-
-	strcpy(comandoPrincipal,unComando->comando);
-	strcpy(parametro1,unComando->parametro[0]);
-	strcpy(parametro2,unComando->parametro[1]);
-	strcpy(parametro3,unComando->parametro[2]);
-	strcpy(parametro4,unComando->parametro[3]);
-	strcpy(parametro5,unComando->parametro[4]);
-
-	//SELECT
-	if(strcmp(comandoPrincipal,"select")==0){
-		if(parametro1[0] == '\0'){
-			log_info(logger, "select no recibio el nombre de la tabla\n");
-			return;
-		}else if (parametro2[0] == '\0'){
-			log_info(logger, "select no recibio la key\n");
-			return;
-		}//else select_knl(parametro1,atoi(parametro2));
-
-	//INSERT
-	}else if (strcmp(comandoPrincipal,"insert")==0){
-		if(parametro1[0] == '\0'){
-			log_info(logger, "insert no recibio el nombre de la tabla\n");
-			return;
-		}else if (parametro2[0] == '\0'){
-			log_info(logger, "insert no recibio la key\n");
-			return;
-		}else if (parametro3[0] == '\0'){
-			log_info(logger, "insert no recibio el valor\n");
-			return;
-		}else if (parametro4[0] == '\0'){
-//			insert_knl(parametro1,atoi(parametro2),parametro3,unix_epoch());
-		}//else insert_knl(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
-
-	//CREATE
-	}else if (strcmp(comandoPrincipal,"create")==0){
-		if(parametro1[0] == '\0'){
-			log_info(logger, "create no recibio el nombre de la tabla\n");
-			return;
-		}else if (parametro2[0] == '\0'){
-			log_info(logger, "create no recibio el tipo de consistencia\n");
-			return;
-		}else if (parametro3[0] == '\0'){
-			log_info(logger, "create no recibio la particion\n");
-			return;
-		}else if (parametro4[0] == '\0'){
-			log_info(logger, "create no recibio el tiempo de compactacion\n");
-			return;
-		}//else create_knl(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
-	
-	//DESCRIBE
-	}else if (strcmp(comandoPrincipal,"describe")==0){
-		//chekea si parametro es nulo adentro de describe_knl
-//		describe_knl(parametro1);
-
-	//DROP
-	}else if (strcmp(comandoPrincipal,"drop")==0){
-		if(parametro1[0] == '\0'){
-			log_info(logger, "drop no recibio el nombre de la tabla\n");
-		}//else drop_knl(parametro1);
-
-	//INFO
-	}else if (strcmp(comandoPrincipal,"info")==0){
-//		info();
-	}
-
-}
+}*/

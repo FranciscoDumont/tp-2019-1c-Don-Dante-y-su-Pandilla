@@ -174,9 +174,9 @@ int main(int argc, char **argv) {
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
 	
-	pthread_detach(thread_g);
-	pthread_detach(thread_server);
-	pthread_detach(journal_thread);
+	pthread_join(thread_g, NULL);
+	pthread_join(thread_server, NULL);
+	pthread_join(journal_thread, NULL);
 
 	pthread_join(mem_console_id, NULL);
 
@@ -853,6 +853,7 @@ void gossiping_thread() {
 	while(1) {
 		int a;
 		list_clean(gossiping_list);
+		log_info(logger, "GOS");
 
 		//First, contact seeds
 		for(a = 0 ; a < config.seeds_q ; a++) {
@@ -899,7 +900,7 @@ void gossiping_thread() {
 			close(memsocket);
 
 		}
-		//inform_gossiping_pool();
+		inform_gossiping_pool();
 
 		sleep(config.gossiping_time / 1000);
 	}
@@ -918,10 +919,8 @@ int server_function() {
 	}
 
 	void new(int fd, char * ip, int port) {
-		log_info(logger, "KERNEL CONNECTED!");
 	}
 	void lost(int fd, char * ip, int port) {
-		log_info(logger, "KERNEL DISCONNECTED", ip, port);
 	}
 	void incoming(int fd, char * ip, int port, MessageHeader * header) {
 		int table_name_size;
