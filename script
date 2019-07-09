@@ -1,16 +1,8 @@
-cd
-mkdir MEM1
-mkdir MEM2
-mkdir MEM3
-
-cd tp-2019-1c-Don-Dante-y-su-Pandilla
-
 git clone https://github.com/sisoputnfrba/so-commons-library.git
 cd so-commons-library
 sudo make install
 cd ..
 
-cd tp-2019-1c-Don-Dante-y-su-Pandilla
 cd dalibrary
 sudo make install
 cd ..
@@ -18,16 +10,19 @@ cd ..
 cd KNL/src
 make
 cd ..
+mv KNL ./../
 cd ..
 
 cd LFS/src
 make
 cd ..
+mv LFS ./../
 cd ..
 
 cd MEM/src
 make
 cd ..
+mv MEM ./../
 cd ..
 
 clear
