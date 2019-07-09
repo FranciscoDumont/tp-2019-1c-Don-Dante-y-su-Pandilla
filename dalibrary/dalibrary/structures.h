@@ -173,7 +173,7 @@ typedef struct _Instruction {
 	int partitions;
 	unsigned long compaction_time;
 	unsigned long timestamp;
-}Instruction;
+} Instruction;
 
 //Kernel
 typedef struct _KNLConfig {
@@ -189,6 +189,13 @@ typedef struct {
 	char comando[20];
 	char parametro[5][20];
 } comando_t;
+
+typedef struct _lql {
+	FILE * file;
+	char * line;
+	size_t len;
+	ssize_t read;
+} LQLScript;
 
 
 #endif /* DALIBRARY_STRUCTURES_H_ */

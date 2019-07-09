@@ -439,13 +439,13 @@ char * consistency_to_char(ConsistencyTypes consistency) {
 }
 
 ConsistencyTypes char_to_consistency(char * consistency) {
-	if(strcmp(consistency, "SC")) {
+	if(strcmp(consistency, "SC") == 0) {
 		return STRONG_CONSISTENCY;
 	}
-	if(strcmp(consistency, "SHC")) {
+	if(strcmp(consistency, "SHC") == 0) {
 		return STRONG_HASH_CONSISTENCY;
 	}
-	if(strcmp(consistency, "EC")) {
+	if(strcmp(consistency, "EC") == 0) {
 		return EVENTUAL_CONSISTENCY;
 	}
 }
@@ -525,5 +525,82 @@ void * crear_consola(void (*execute)(comando_t*),char* unString) {
 		free(linea);
 	}
 	return EXIT_SUCCESS;
+}
+
+void create_lql(LQLScript * script, char * filepath) {
+	printf("CREATING LQL\n\n");
+	script->file = fopen(filepath, "r");
+	script->line = NULL;
+	script->len = 0;
+}
+
+Instruction * parse_lql_line(LQLScript * script) {
+	Instruction * i = null;
+
+	if ((script->read = getline(&script->line, &script->len, script->file)) != -1) {
+
+		char * line = script->line;
+		if(line == NULL || string_equals_ignore_case(line, "")){
+			printf("ERROR");
+			return i;
+		}
+
+		char* auxLine = string_duplicate(line);
+		string_trim(&auxLine);
+		char** split = string_n_split(auxLine, 3, " ");
+
+		i = malloc(sizeof(Instruction));
+
+		if(strcmp(split[0], "SELECT") == 0) {
+			i->i_type = SELECT;
+			i->table_name = split[1];
+			i->key = atoi(split[2]);
+
+			//printf("SEL %s %d\n", i->table_name, i->key);
+		}else if(strcmp(split[0], "INSERT") == 0) {
+			i->i_type = INSERT;
+			i->table_name = split[1];
+
+			char** local_split = string_n_split(split[2], 2, " ");
+
+			i->key = atoi(local_split[0]);
+			i->value = local_split[1];
+			i->value = i->value+1;
+			i->value[strlen(i->value)-1] = '\0';
+
+			//printf("INS %s %d %s\n", i->table_name, i->key, i->value);
+		}else if(strcmp(split[0], "CREATE") == 0) {
+			i->i_type = CREATE;
+			i->table_name = split[1];
+
+			char** local_split = string_n_split(split[2], 3, " ");
+
+			i->c_type = char_to_consistency(local_split[0]);
+			i->partitions = atoi(local_split[1]);
+			i->compaction_time = strtoul(local_split[2], NULL, 0);
+
+			//printf("CRE %s %d %d %ul\n", i->table_name, i->c_type, i->partitions, i->compaction_time);
+		}else if(strcmp(split[0], "DESCRIBE") == 0) {
+			i->i_type = DESCRIBE;
+			i->table_name = split[1];
+
+			//printf("DES %s\n", i->table_name);
+		}else if(strcmp(split[0], "DROP") == 0) {
+			i->i_type = DROP;
+			i->table_name = split[1];
+
+			//printf("DRO %s\n", i->table_name);
+		} else {
+			printf("UNSOPORTED %s", auxLine);
+		}
+	} else {
+		printf("ERROR");
+		return i;
+	}
+	return i;
+}
+
+void close_lql(LQLScript * script) {
+	fclose(script->file);
 }
 

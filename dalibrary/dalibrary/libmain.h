@@ -79,4 +79,9 @@ void vaciar_comando(comando_t* );
 void * crear_consola(void (*execute)(comando_t*),char* unString);
 
 
+
+void create_lql(LQLScript * script, char * filepath);
+Instruction * parse_lql_line(LQLScript * script);
+void close_lql(LQLScript * script);
+
 #endif
