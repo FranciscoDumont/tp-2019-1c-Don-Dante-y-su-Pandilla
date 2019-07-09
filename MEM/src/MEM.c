@@ -1059,7 +1059,6 @@ int server_function() {
 				}
 			case KNL_MEM_DROP:
 				{
-					;
 					int table_name_size;
 					char * table_name;
 
@@ -1069,7 +1068,7 @@ int server_function() {
 
 					int drop_result = drop_mem(table_name);
 
-					if(drop_result == true){
+					if(!drop_result){
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}else{
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);

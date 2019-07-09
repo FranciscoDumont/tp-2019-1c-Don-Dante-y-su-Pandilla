@@ -477,7 +477,9 @@ void execute_knl(comando_t* unComando){
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
 			log_info(logger, "drop no recibio el nombre de la tabla\n");
-		}//else drop_knl(parametro1);
+		}else {
+			drop_knl(parametro1);
+		}
 	}else if (strcmp(comandoPrincipal,"add")==0){
 		int memid;
 		if(strcmp(parametro1, "memory") != 0) {
@@ -626,6 +628,56 @@ _Bool select_knl(char * table_name, int key){
 	return false;
 }
 
+_Bool drop_knl(char * table_name){
+	MemtableTableReg * tReg = find_table(table_name);
+	if(tReg == null) {
+		log_info(logger, "Tabla no existe");
+		return false;
+	}
+
+	MemPoolData * selected_memory = select_memory_by_table(tReg);
+	if(selected_memory == null) {
+		log_error(logger, "No available memory for table");
+		return false;
+	}
+
+	int memsocket;
+
+	if ((memsocket = create_socket()) == -1) {
+		memsocket = -1;
+	}
+	if (memsocket != -1 && (connect_socket(memsocket, selected_memory->ip, selected_memory->port)) == -1) {
+		memsocket = -1;
+	}
+	if(memsocket == -1) {
+		log_error(logger, "Memory was unreachable");
+		return false;
+	} else {
+		int exit_value;
+		send_data(memsocket, KNL_MEM_DROP, 0, null);
+
+		int table_name_len = strlen(table_name)+1;
+		send(memsocket, &table_name_len,  sizeof(int), 0);
+		send(memsocket, table_name,       table_name_len * sizeof(char),0);
+
+		MessageHeader * header = malloc(sizeof(MessageHeader));
+		recieve_header(memsocket, header);
+		if(header->type == OPERATION_SUCCESS) {
+			log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			log_info(logger, "DROP EN EL FILESYSTEM");
+			exit_value = EXIT_SUCCESS;
+			return true;
+		} else {
+			log_info(logger, "DROP ERROR");
+			exit_value = EXIT_FAILURE;
+			return false;
+		}
+
+		return exit_value;
+	}
+	return false;
+}
+
 
 /*int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
 	log_info(logger, "INICIA CREATE: create_knl(%s, %d, %d, %d)", table_name, consistency, partitions, compaction_time);
@@ -649,30 +701,5 @@ _Bool select_knl(char * table_name, int key){
 		log_info(logger, "CREATE ERROR");
 		exit_value = EXIT_FAILURE;
 	}
-	return exit_value;
-}
-
-int drop_knl(char * table_name){
-	log_info(logger, "INICIA DROP: drop_knl(%s)", table_name);
-
-	int exit_value;
-	send_data(config.a_memory_ip, KNL_MEM_DROP, 0, null);
-
-	int table_name_len = strlen(table_name)+1;
-
-	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
-	send(config.a_memory_ip, table_name,       table_name_len,0);
-
-	MessageHeader * header = malloc(sizeof(MessageHeader));
-	recieve_header(config.a_memory_ip, header);
-	if(header->type == OPERATION_SUCCESS) {
-		log_info(logger, "MEM ANSWERED SUCCESFULLY");
-		log_info(logger, "DROP EN EL FILESYSTEM");
-		exit_value = EXIT_SUCCESS;
-	} else {
-		log_info(logger, "DROP ERROR");
-		exit_value = EXIT_FAILURE;
-	}
-
 	return exit_value;
 }*/
