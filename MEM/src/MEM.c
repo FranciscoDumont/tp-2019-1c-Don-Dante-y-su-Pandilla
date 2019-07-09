@@ -1060,6 +1060,11 @@ int server_function() {
 				}
 
 				break;
+			case KNL_MEM_JOURNAL:
+				;
+				journal();
+				send_data(fd, MEM_KNL_JOURNAL_OK, 0, null);
+				break;
 		}
 	}
 	start_server(config.mysocket, &new, &lost, &incoming);

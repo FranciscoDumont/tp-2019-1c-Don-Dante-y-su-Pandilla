@@ -16,6 +16,8 @@ t_list * ready_queue;
 t_list * exit_queue;
 t_list * exec_threads;
 
+pthread_mutex_t criterions_mutex;
+
 ConsistencyCriterion CriterionStrong;
 ConsistencyCriterion CriterionEventual;
 ConsistencyCriterion CriterionHash;
@@ -64,6 +66,7 @@ int main(int argc, char **argv) {
 	lql_max_id = 0;
 
 	init_normal_mutex(&ready_queue_mutex, "READY_QUEUE");
+	init_normal_mutex(&criterions_mutex, "CRITERIONS");
 
 	config.a_memory_ip = config_get_string_value(config_file, "IP_MEMORIA");
 	config.a_memory_port = config_get_int_value(config_file, "PUERTO_MEMORIA");
@@ -216,6 +219,8 @@ _Bool exec_lql_line(LQLScript * lql) {
 	Instruction * i = parse_lql_line(lql);
 
 	print_op_debug(i);
+
+	lock_mutex(&criterions_mutex);
 	switch(i->i_type) {
 		case CREATE:
 			break;
@@ -228,17 +233,42 @@ _Bool exec_lql_line(LQLScript * lql) {
 		case DROP:
 			break;
 	}
+	unlock_mutex(&criterions_mutex);
+
 	return true;
 }
 
 void journal_to_memories_list(t_list * memories) {
-
+	int i, memsocket;
+	for(i=0 ; i<memories->elements_count ; i++) {
+		MemPoolData * m = list_get(memories, i);
+		if ((memsocket = create_socket()) == -1) {
+			memsocket = -1;
+		}
+		if (memsocket != -1 && (connect_socket(memsocket, m->ip, m->port)) == -1) {
+			memsocket = -1;
+		}
+		if(memsocket != -1) {
+			send_data(memsocket, KNL_MEM_JOURNAL, 0, null);
+			MessageHeader * h = malloc(sizeof(MessageHeader));
+			recieve_header(memsocket, h);
+			if(h->type == MEM_KNL_JOURNAL_OK) {
+				//SUCCESS
+			} else {
+				//ERROR
+			}
+			free(h);
+			close(memsocket);
+		}
+	}
 }
 
 void journal_to_criterions_memories() {
+	lock_mutex(&criterions_mutex);
 	journal_to_memories_list(CriterionEventual.memories);
 	journal_to_memories_list(CriterionHash.memories);
 	journal_to_memories_list(CriterionStrong.memories);
+	unlock_mutex(&criterions_mutex);
 }
 
 //Gossiping
