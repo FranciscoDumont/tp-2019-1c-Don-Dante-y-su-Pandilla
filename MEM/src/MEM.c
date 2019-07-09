@@ -376,6 +376,7 @@ char * select_mem(char * table_name, int key){
 
  } } else{
 		log_info(logger, "El segmento %s no existe", table_name);
+		//Hay que agregar que vaya a buscar el segmento a fs
 	}
 
 
@@ -1106,6 +1107,7 @@ int server_function() {
 					send(fd, &table_n_l, sizeof(int), 0);
 					send(fd, table->table_name, table_n_l * sizeof(char), 0);
 				}
+				break;
 			case GIVE_ME_YOUR_METRICS:
 				{
 					send(fd, &total_operations, sizeof(int), 0);
