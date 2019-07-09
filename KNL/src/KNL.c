@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 	config.current_multiprocessing = 0;
 
 	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
-	metrics_logger = log_create("metrics_logger.log", "KNL", true, LOG_LEVEL_TRACE);
+	metrics_logger = log_create("metrics_logger.log", "KNL", false, LOG_LEVEL_TRACE);
 
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
@@ -136,7 +136,7 @@ void running(int n) {
 		}
 		if(this_core_lql != null) {
 			this_core_lql->state = EXEC;
-			log_info(logger, "RUNNING THREAD %d - LQL %d\n", n, this_core_lql->lqlid);
+			//log_info(logger, "RUNNING THREAD %d - LQL %d\n", n, this_core_lql->lqlid);
 			if(exec_lql_line(this_core_lql)) {
 				this_core_lql->quantum_counter++;
 				if(feof(this_core_lql->file)) {
@@ -144,7 +144,7 @@ void running(int n) {
 					this_core_lql->state = EXIT;
 					list_add(exit_queue, this_core_lql);
 					this_core_lql = null;
-					log_info(logger, "  EXIT X FEOF\n");
+					custom_print("  EXIT X FEOF\n");
 				} else {
 					if(this_core_lql->quantum_counter == config.quantum) {
 						//EXIT X QUANTUM
@@ -152,11 +152,12 @@ void running(int n) {
 							this_core_lql->state = READY;
 							list_add(ready_queue, this_core_lql);
 						unlock_mutex(&ready_queue_mutex);
+						this_core_lql->quantum_counter = 0;
 						this_core_lql = null;
-						log_info(logger, "  EXIT X QUANTUM\n");
+						custom_print("  EXIT X QUANTUM\n");
 					} else {
 						//CONTINUE
-						log_info(logger, "  CONTINUES\n");
+						custom_print("  CONTINUES\n");
 					}
 				}
 			} else {
@@ -164,10 +165,10 @@ void running(int n) {
 				this_core_lql->state = EXIT;
 				list_add(exit_queue, this_core_lql);
 				this_core_lql = null;
-				log_info(logger, "  EXIT X ERROR\n");
+				custom_print("  EXIT X ERROR\n");
 			}
 		} else {
-			log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
+			//log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
 		}
 		sleep(config.exec_delay/1000);
 	}
@@ -176,7 +177,7 @@ void running(int n) {
 void add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
 	int * did = malloc(sizeof(int));
 	(*did) = memory_id;
-	log_info(logger, "ADDING %d TO %s", *did, consistency_to_char(type));
+	//log_info(logger, "ADDING %d TO %s", *did, consistency_to_char(type));
 	switch(type) {
 		case EVENTUAL_CONSISTENCY:
 			list_add(CriterionEventual.memories, did);
@@ -218,19 +219,19 @@ void run_knl(char * filepath) {
 void print_op_debug(Instruction * i) {
 	switch(i->i_type) {
 		case CREATE:
-			printf("CREATE %s %s %d %d", i->table_name, consistency_to_char(i->c_type), i->partitions, i->compaction_time);
+			custom_print("CREATE %s %s %d %d\n", i->table_name, consistency_to_char(i->c_type), i->partitions, i->compaction_time);
 			break;
 		case SELECT:
-			printf("SELECT %s %d", i->table_name, i->key);
+			custom_print("SELECT %s %d\n", i->table_name, i->key);
 			break;
 		case INSERT:
-			printf("INSERT %s %d %s", i->table_name, i->key, i->value);
+			custom_print("INSERT %s %d %s %ul\n", i->table_name, i->key, i->value, i->timestamp);
 			break;
 		case DESCRIBE:
-			printf("DESCRIBE %s", i->table_name);
+			custom_print("DESCRIBE %s\n", i->table_name);
 			break;
 		case DROP:
-			printf("DROP %s", i->table_name);
+			custom_print("DROP %s\n", i->table_name);
 			break;
 	}
 }
@@ -323,7 +324,7 @@ void refresh_metadata(_Bool print_x_screen) {
 			recv(memsocket, table->table_name, table_n_l * sizeof(char), 0);
 
 			if(print_x_screen)
-				log_info(logger, "ASDASD %s %d", table->table_name, table->consistency);
+				//log_info(logger, "ASDASD %s %d", table->table_name, table->consistency);
 
 			//TABLE
 			list_add(tables_dict, table);
@@ -340,15 +341,15 @@ void metadata_refresh_loop() {
 
 //Gossiping
 void inform_gossiping_pool() {
-	log_info(logger, "GOSSIPING LIST START");
+	//log_info(logger, "GOSSIPING LIST START");
 
 	int a;
 	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
 		MemPoolData * this_mem = list_get(gossiping_list, a);
-		log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
+		//log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
 	}
 
-	log_info(logger, "GOSSIPING LIST END");
+	//log_info(logger, "GOSSIPING LIST END");
 }
 void add_to_pool(MemPoolData * mem) {
 	int a;
@@ -378,11 +379,11 @@ void gossiping_thread() {
 			memsocket = -1;
 		}
 
-		log_info(logger, "requesting to %s %d", this_seed->ip, this_seed->port);
+		//log_info(logger, "requesting to %s %d", this_seed->ip, this_seed->port);
 		if(memsocket != -1) {
 			send_data(memsocket, GOSSIPING_REQUEST, 0, NULL);
 			recv(memsocket, &(this_seed->memory_id), sizeof(int), 0);
-			log_info(logger, "   ITS %d", this_seed->memory_id);
+			//log_info(logger, "   ITS %d", this_seed->memory_id);
 
 			add_to_pool(this_seed);
 
@@ -396,7 +397,7 @@ void gossiping_thread() {
 				recv(memsocket, &this_mem->memory_id, sizeof(int), 0);
 				recv(memsocket, this_mem->ip, sizeof(char) * IP_LENGTH, 0);
 
-				log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
+				//log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
 
 				add_to_pool(this_mem);
 			}
@@ -443,10 +444,10 @@ void execute_knl(comando_t* unComando){
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "Indique el nombre de la Tabla");
+			custom_print("Indique el nombre de la Tabla");
 			return;
 		}else if (parametro2[0] == '\0'){
-			log_info(logger, "Indique la key");
+			custom_print("Indique la key");
 			return;
 		}else {
 			select_knl(parametro1, atoi(parametro2));
@@ -454,13 +455,13 @@ void execute_knl(comando_t* unComando){
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "Indique nombre de Tabla");
+			custom_print("Indique nombre de Tabla");
 			return;
 		}else if (parametro2[0] == '\0'){
-			log_info(logger, "Indique la key");
+			custom_print("Indique la key");
 			return;
 		}else if (parametro3[0] == '\0'){
-			log_info(logger, "Indique el valor");
+			custom_print("Indique el valor");
 			return;
 		}else if (parametro4[0] == '\0'){
 			insert_knl(parametro1, atoi(parametro2), parametro3, unix_epoch());
@@ -470,16 +471,16 @@ void execute_knl(comando_t* unComando){
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "Indique el nombre de la Tabla");
+			custom_print("Indique el nombre de la Tabla");
 			return;
 		}else if (parametro2[0] == '\0'){
-			log_info(logger, "Indique el tipo de consistencia");
+			custom_print("Indique el tipo de consistencia");
 			return;
 		}else if (parametro3[0] == '\0'){
-			log_info(logger, "Indique la cantidad de particiones");
+			custom_print("Indique la cantidad de particiones");
 			return;
 		}else if (parametro4[0] == '\0'){
-			log_info(logger, "Indique el tiempo de compactacion");
+			custom_print("Indique el tiempo de compactacion");
 			return;
 		}else {
 			create_knl(parametro1, char_to_consistency(parametro2), atoi(parametro3), atoi(parametro4));
@@ -496,32 +497,32 @@ void execute_knl(comando_t* unComando){
 			}
 			MemtableTableReg * result = list_find(tables_dict, find_table);
 			if(result == null) {
-				printf("La tabla %s no existe", parametro1);
+				custom_print("La tabla %s no existe", parametro1);
 			} else {
-				printf("Tabla %s Consistencia %d", result->table_name, result->consistency);
+				custom_print("Tabla %s Consistencia %d", result->table_name, result->consistency);
 			}
 		}
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "Indique el nombre de la Tabla");
+			custom_print("Indique el nombre de la Tabla");
 		}else {
 			drop_knl(parametro1);
 		}
 	}else if (strcmp(comandoPrincipal,"add")==0){
 		int memid;
 		if(strcmp(parametro1, "memory") != 0) {
-			printf("Wrong syntax. ADD MEMORY");
+			custom_print("Wrong syntax. ADD MEMORY");
 		} else {
 			memid = atoi(parametro2);
 
 			if(strcmp(parametro3, "to") != 0) {
 				//ERROR
-				printf("Wrong syntax. ADD MEMORY # TO");
+				custom_print("Wrong syntax. ADD MEMORY # TO");
 			} else {
 				ConsistencyTypes consistency = char_to_consistency(parametro4);
 				if(consistency == C_UNKNOWN) {
-					printf("Wrong syntax. ADD MEMORY # TO [EC/SC/SHC]");
+					custom_print("Wrong syntax. ADD MEMORY # TO [EC/SC/SHC]");
 				} else {
 					add_memory_to_criterion(memid, consistency);
 				}
@@ -529,10 +530,10 @@ void execute_knl(comando_t* unComando){
 		}
 	}else if (strcmp(comandoPrincipal,"journal")==0){
 		journal_to_criterions_memories();
-		printf("Journal Realizado");
+		custom_print("Journal Realizado");
 	} else if (strcmp(comandoPrincipal,"run")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "Indique el LQL a ejecutar");
+			custom_print("Indique el LQL a ejecutar");
 		}else {
 			run_knl(parametro1);
 		}
@@ -542,7 +543,7 @@ void execute_knl(comando_t* unComando){
 		//info();
 	}else if (strcmp(comandoPrincipal,"find")==0){
 		if(parametro1[0] == '\0'){
-			log_info(logger, "Indique el numero de memoria");
+			custom_print("Indique el numero de memoria");
 		}else {
 			getMemoryData(atoi(parametro1));
 		}
@@ -570,7 +571,7 @@ MemPoolData * select_memory_by_consistency(ConsistencyTypes type, int key) {
 		si = list_get(CriterionStrong.memories, 0);
 		break;
 	case EVENTUAL_CONSISTENCY:
-		log_info(logger, "trying %d %d", CriterionEventual.rr_next_to_use, CriterionEventual.memories->elements_count);
+		//log_info(logger, "trying %d %d", CriterionEventual.rr_next_to_use, CriterionEventual.memories->elements_count);
 		if(CriterionEventual.rr_next_to_use >= CriterionEventual.memories->elements_count) {
 			CriterionEventual.rr_next_to_use = 0;
 			if(CriterionEventual.memories->elements_count != 0) {
@@ -593,7 +594,7 @@ MemPoolData * select_memory_by_consistency(ConsistencyTypes type, int key) {
 		}
 		break;
 	}
-	log_info(logger, "USING SID %d", (*si));
+	//log_info(logger, "USING SID %d", (*si));
 	return getMemoryData(*si);
 	return null;
 }
@@ -604,13 +605,13 @@ MemPoolData * select_memory_by_consistency(ConsistencyTypes type, int key) {
 _Bool insert_knl(char * table_name, int key, char * value, unsigned long timestamp){
 	MemtableTableReg * tReg = find_table(table_name);
 	if(tReg == null) {
-		log_info(logger, "Tabla no existe");
+		//log_info(logger, "Tabla no existe");
 		return false;
 	}
 
 	MemPoolData * selected_memory = select_memory_by_table(tReg, key);
 	if(selected_memory == null) {
-		log_error(logger, "No available memory for table");
+		//log_error(logger, "No available memory for table");
 		return false;
 	}
 
@@ -623,7 +624,7 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 		memsocket = -1;
 	}
 	if(memsocket == -1) {
-		log_error(logger, "Memory was unreachable");
+		//log_error(logger, "Memory was unreachable");
 		return false;
 	} else {
 		int exit_value;
@@ -645,10 +646,10 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 		MessageHeader * header = malloc(sizeof(MessageHeader));
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
-			log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
 			return true;
 		} else {
-			log_info(logger, "INSERT ERROR");
+			//log_info(logger, "INSERT ERROR");
 			return false;
 		}
 
@@ -750,7 +751,7 @@ void perform_metrics() {
 		}
 	}
 
-	log_info(metrics_logger, "END_METRICS_LOGGER_%ul", CriterionHash.metrics_start_measure);
+	//log_info(metrics_logger, "END_METRICS_LOGGER_%ul", CriterionHash.metrics_start_measure);
 }
 
 void metrics_thread() {
@@ -764,13 +765,13 @@ void metrics_thread() {
 _Bool select_knl(char * table_name, int key){
 	MemtableTableReg * tReg = find_table(table_name);
 	if(tReg == null) {
-		log_info(logger, "Tabla no existe");
+		//log_info(logger, "Tabla no existe");
 		return false;
 	}
 
 	MemPoolData * selected_memory = select_memory_by_table(tReg, -1);
 	if(selected_memory == null) {
-		log_error(logger, "No available memory for table");
+		//log_error(logger, "No available memory for table");
 		return false;
 	}
 
@@ -783,7 +784,7 @@ _Bool select_knl(char * table_name, int key){
 		memsocket = -1;
 	}
 	if(memsocket == -1) {
-		log_error(logger, "Memory was unreachable");
+		//log_error(logger, "Memory was unreachable");
 		return false;
 	} else {
 		int exit_value;
@@ -799,17 +800,17 @@ _Bool select_knl(char * table_name, int key){
 		MessageHeader * header = malloc(sizeof(MessageHeader));
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
-			log_info(logger, "MEM ANSWERED SUCCESFULLY");
-			log_info(logger, "MEM ENVÍA RESULTADO DE SELECT SOLICITADO");
+			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			//log_info(logger, "MEM ENVÍA RESULTADO DE SELECT SOLICITADO");
 			int result_len;
 			recv(memsocket, &result_len, sizeof(int), 0);
 			char* value = malloc(sizeof(char) * result_len);
 			recv(memsocket, value, result_len * sizeof(char), 0);
-			log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
+			//log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
 			exit_value = EXIT_SUCCESS;
 			return true;
 		} else {
-			log_info(logger, "SELECT ERROR");
+			//log_info(logger, "SELECT ERROR");
 			return false;
 		}
 
@@ -825,13 +826,13 @@ _Bool select_knl(char * table_name, int key){
 _Bool drop_knl(char * table_name){
 	MemtableTableReg * tReg = find_table(table_name);
 	if(tReg == null) {
-		log_info(logger, "Tabla no existe");
+		custom_print("Tabla no existe %s", table_name);
 		return false;
 	}
 
 	MemPoolData * selected_memory = select_memory_by_table(tReg, -1);
 	if(selected_memory == null) {
-		log_error(logger, "No available memory for table");
+		//log_error(logger, "No available memory for table");
 		return false;
 	}
 
@@ -844,7 +845,7 @@ _Bool drop_knl(char * table_name){
 		memsocket = -1;
 	}
 	if(memsocket == -1) {
-		log_error(logger, "Memory was unreachable");
+		//log_error(logger, "Memory was unreachable");
 		return false;
 	} else {
 		int exit_value;
@@ -857,12 +858,12 @@ _Bool drop_knl(char * table_name){
 		MessageHeader * header = malloc(sizeof(MessageHeader));
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
-			log_info(logger, "MEM ANSWERED SUCCESFULLY");
-			log_info(logger, "DROP EN EL FILESYSTEM");
+			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			//log_info(logger, "DROP EN EL FILESYSTEM");
 			exit_value = EXIT_SUCCESS;
 			return true;
 		} else {
-			log_info(logger, "DROP ERROR");
+			//log_info(logger, "DROP ERROR");
 			exit_value = EXIT_FAILURE;
 			return false;
 		}
@@ -875,11 +876,11 @@ _Bool drop_knl(char * table_name){
 _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
 	MemPoolData * selected_memory = select_memory_by_consistency(consistency, -1);
 	if(selected_memory == null) {
-		log_error(logger, "No available memory for table");
+		//log_error(logger, "No available memory for table");
 		return false;
 	}
 
-	log_info(logger, "SELECTED %d %s %d", selected_memory->memory_id, selected_memory->ip, selected_memory->port);
+	//log_info(logger, "SELECTED %d %s %d", selected_memory->memory_id, selected_memory->ip, selected_memory->port);
 
 	int memsocket;
 
@@ -890,7 +891,7 @@ _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions
 		memsocket = -1;
 	}
 	if(memsocket == -1) {
-		log_error(logger, "Memory was unreachable");
+		//log_error(logger, "Memory was unreachable");
 		return false;
 	} else {
 		int exit_value;
@@ -904,13 +905,21 @@ _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions
 		send(memsocket, &partitions, sizeof(int), 0);
 		send(memsocket, &compaction_time, sizeof(int), 0);
 
+		MemtableTableReg * table = malloc(sizeof(MemtableTableReg));
+		table->table_name = table_name;
+		table->partitions = partitions;
+		table->compaction_time = compaction_time;
+		table->consistency = consistency;
+
+		list_add(tables_dict, table);
+
 		MessageHeader * header = malloc(sizeof(MessageHeader));
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
-			log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
 			exit_value = EXIT_SUCCESS;
 		} else {
-			log_info(logger, "CREATE ERROR");
+			//log_info(logger, "CREATE ERROR");
 			exit_value = EXIT_FAILURE;
 		}
 	}

@@ -15,6 +15,10 @@
 
 
 
+#include <stdarg.h>
+
+
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -36,6 +40,7 @@
 
 
 
+void custom_print(const char* message_template, ...);
 void sayhi(char * name);
 int create_socket();
 int bind_socket(int socket, int port);

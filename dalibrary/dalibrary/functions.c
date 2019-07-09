@@ -2,22 +2,33 @@
 
 
 
+void custom_print(const char* message_template, ...) {
+	fflush(stdin);fflush(stdout);
+
+	va_list vargs;
+	va_start(vargs, message_template);
+	vprintf(message_template, vargs);
+	va_end(vargs);
+
+	fflush(stdin);fflush(stdout);
+}
+
 void sayhi(char * name) {
-	printf("Hola %s", name);
+	custom_print("Hola %s", name);
 }
 
 int create_socket() {
 	int fd;
 	if ((fd=socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_CREATING_SOCKET]\n");
+			custom_print("[NETWORK_ERROR][ERROR_CREATING_SOCKET]\n");
 		}
 		return -1;
 	} else {
 		int option = 1;
 		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 		if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-			printf("[NETWORK_INFO][SOCKET_CREATED_%d]\n", fd);
+			custom_print("[NETWORK_INFO][SOCKET_CREATED_%d]\n", fd);
 		}
 		return fd;
 	}
@@ -36,11 +47,11 @@ int bind_socket(int socket, int port) {
 		sizeof(struct sockaddr));
 	if(bindres != 0) {
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_BINDING_SOCKET_TO_%d]\n", port);
+			custom_print("[NETWORK_ERROR][ERROR_BINDING_SOCKET_TO_%d]\n", port);
 		}
 	} else {
 		if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-			printf("[NETWORK_INFO][SOCKET_BINDED_%d_TO_%d]\n", socket, port);
+			custom_print("[NETWORK_INFO][SOCKET_BINDED_%d_TO_%d]\n", socket, port);
 		}
 	}
 	return bindres;
@@ -52,12 +63,12 @@ int connect_socket(int socket, char * addr, int port) {
 
 	if ((he=gethostbyname(addr)) == NULL) {
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_FINDING_HOST_%s]\n", addr);
+			custom_print("[NETWORK_ERROR][ERROR_FINDING_HOST_%s]\n", addr);
 		}
 		return -1;
 	}
 	if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-		printf("[NETWORK_INFO][CONNECTING_SOCKET_HOST_FOUND_%s]\n", addr);
+		custom_print("[NETWORK_INFO][CONNECTING_SOCKET_HOST_FOUND_%s]\n", addr);
 	}
 
 	server.sin_family = AF_INET;
@@ -69,12 +80,12 @@ int connect_socket(int socket, char * addr, int port) {
 
 	if (connect(socket, (struct sockaddr *)&server, sizeof(struct sockaddr)) == -1){
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_CONNECTING_TO_%s:%d]\n", addr, port);
+			custom_print("[NETWORK_ERROR][ERROR_CONNECTING_TO_%s:%d]\n", addr, port);
 		}
 		return -1;
 	}
 	if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-		printf("[NETWORK_INFO][SOCKET_CONNECTED_%d_%s:%d]\n", socket, addr, port);
+		custom_print("[NETWORK_INFO][SOCKET_CONNECTED_%d_%s:%d]\n", socket, addr, port);
 	}
 	return 0;
 }
@@ -82,7 +93,7 @@ int connect_socket(int socket, char * addr, int port) {
 int close_socket(int socket) {
 	close(socket);
 	if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-		printf("[NETWORK_INFO][SOCKET_CLOSED_%d\n]", socket);
+		custom_print("[NETWORK_INFO][SOCKET_CLOSED_%d\n]", socket);
 	}
 	return 0;
 }
@@ -99,12 +110,12 @@ int send_data(int destination, MessageType type, int data_size, void * data_stre
 	sent = send(destination, header, sizeof(MessageHeader), 0);
 	if (sent == -1) {
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_SENDING_HEADER_TO_%d]\n", destination);
+			custom_print("[NETWORK_ERROR][ERROR_SENDING_HEADER_TO_%d]\n", destination);
 		}
 		return sent;
 	} else {
 		if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-			printf("[NETWORK_INFO][HEADER_SENT_TO_%d_(%d_bytes)]\n", destination, sent);
+			custom_print("[NETWORK_INFO][HEADER_SENT_TO_%d_(%d_bytes)]\n", destination, sent);
 		}
 	}
 	header_sent = sent;
@@ -112,18 +123,18 @@ int send_data(int destination, MessageType type, int data_size, void * data_stre
 		data_sent = send(destination, data_stream, data_size, 0);
 		if (sent == -1) {
 			if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-				printf("[NETWORK_ERROR][ERROR_SENDING_DATA_STREAM_TO_%d]\n", destination);
+				custom_print("[NETWORK_ERROR][ERROR_SENDING_DATA_STREAM_TO_%d]\n", destination);
 			}
 			return sent;
 		} else {
 			if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-				printf("[NETWORK_INFO][DATA_STREAM_SENT_TO_%d_(%d_bytes)]\n", destination, data_sent);
+				custom_print("[NETWORK_INFO][DATA_STREAM_SENT_TO_%d_(%d_bytes)]\n", destination, data_sent);
 			}
 			sent += data_sent;
 		}
 	} else {
 		if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-			printf("[NETWORK_INFO][NO_STREAM_TO_SEND]\n", destination);
+			custom_print("[NETWORK_INFO][NO_STREAM_TO_SEND]\n", destination);
 		}
 	}
 
@@ -135,11 +146,11 @@ int recieve_header(int source, MessageHeader * buffer) {
 	rec = recv(source, buffer, sizeof(MessageHeader), 0);
 	if (rec > 0) {
 		if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-			printf("[NETWORK_INFO][HEADER_RECIEVED_FROM_%d_(%d_bytes)]\n", source, rec);
+			custom_print("[NETWORK_INFO][HEADER_RECIEVED_FROM_%d_(%d_bytes)]\n", source, rec);
 		}
 	} else {
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_RECIEVING_HEADER_FROM_%d]\n", source);
+			custom_print("[NETWORK_ERROR][ERROR_RECIEVING_HEADER_FROM_%d]\n", source);
 		}
 	}
 	return rec;
@@ -150,11 +161,11 @@ int recieve_data(int source, void * buffer, int data_size) {
 	rec = recv(source, buffer, sizeof(data_size), 0);
 	if (rec > 0) {
 		if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-			printf("[NETWORK_INFO][DATA_RECIEVED_FROM_%d_(%d_bytes)]\n", source, rec);
+			custom_print("[NETWORK_INFO][DATA_RECIEVED_FROM_%d_(%d_bytes)]\n", source, rec);
 		}
 	} else {
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_RECIEVING_DATA_FROM_%d]\n", source);
+			custom_print("[NETWORK_ERROR][ERROR_RECIEVING_DATA_FROM_%d]\n", source);
 		}
 	}
 	return rec;
@@ -180,12 +191,12 @@ int start_server(int socket,
 
 	if (listen(socket, MAX_CONN) < 0) {
 		if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-			printf("[NETWORK_ERROR][ERROR_LISTENING_FD_%d]\n", socket);
+			custom_print("[NETWORK_ERROR][ERROR_LISTENING_FD_%d]\n", socket);
 		}
 		return -1;
 	}
 	if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-		printf("[NETWORK_INFO][SOCKET_NOW_LISTENING_%d]\n", socket);
+		custom_print("[NETWORK_INFO][SOCKET_NOW_LISTENING_%d]\n", socket);
 	}
 
 	addrlen = sizeof(address);
@@ -207,13 +218,13 @@ int start_server(int socket,
 		}
 
 		if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-			printf("[NETWORK_INFO][SOCKET_AWAITING_CONNECTION_%d]\n", socket);
+			custom_print("[NETWORK_INFO][SOCKET_AWAITING_CONNECTION_%d]\n", socket);
 		}
 		activity = select(max_sd + 1, &readfds, NULL, NULL, NULL);
 
 		if (activity < 0) {
 			if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-				printf("[NETWORK_ERROR][ERROR_SELECTING_FD_%d]\n", socket);
+				custom_print("[NETWORK_ERROR][ERROR_SELECTING_FD_%d]\n", socket);
 			}
 		}
 
@@ -221,12 +232,12 @@ int start_server(int socket,
 			if ((new_socket = accept(socket,
 					(struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
 				if(NETWORK_DEBUG_LEVEL >= NW_NETWORK_ERRORS) {
-					printf("[NETWORK_ERROR][ERROR_ACCEPTING_SOCKET_%d_%s:%d]\n",
+					custom_print("[NETWORK_ERROR][ERROR_ACCEPTING_SOCKET_%d_%s:%d]\n",
 							new_socket, inet_ntoa(address.sin_addr), ntohs(address.sin_port));
 				}
 			}
 				if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-					printf("[NETWORK_INFO][NEW_CONNECTION_%d_%d_%s:%d]\n", socket, new_socket,
+					custom_print("[NETWORK_INFO][NEW_CONNECTION_%d_%d_%s:%d]\n", socket, new_socket,
 							inet_ntoa(address.sin_addr), ntohs(address.sin_port));
 				}
 				new_connection(new_socket, inet_ntoa(address.sin_addr), ntohs(address.sin_port));
@@ -251,7 +262,7 @@ int start_server(int socket,
 					getpeername(sd , (struct sockaddr*)&address , (socklen_t*)&addrlen);
 
 					if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-						printf("[NETWORK_INFO][LOST_CONNECTION_%d_%d_%s:%d]\n", socket, client_socket,
+						custom_print("[NETWORK_INFO][LOST_CONNECTION_%d_%d_%s:%d]\n", socket, client_socket,
 								inet_ntoa(address.sin_addr), ntohs(address.sin_port));
 					}
 					lost_connection(client_socket, inet_ntoa(address.sin_addr) , ntohs(address.sin_port));
@@ -261,7 +272,7 @@ int start_server(int socket,
 				} else {
 
 					if(NETWORK_DEBUG_LEVEL >= NW_ALL_DISPLAY) {
-						printf("[NETWORK_INFO][INCOMING_MESSAGE_%d_%d]\n", socket, client_socket);
+						custom_print("[NETWORK_INFO][INCOMING_MESSAGE_%d_%d]\n", socket, client_socket);
 					}
 					incoming_message(client_socket, inet_ntoa(address.sin_addr) , ntohs(address.sin_port), incoming);
 
@@ -287,11 +298,11 @@ int init_normal_mutex(pthread_mutex_t * mutex, char * name) {
 	res = pthread_mutex_init(mutex, NULL);
 	if (res != 0) {
 		if(MUTEX_DEBUG_LEVEL >= MX_MUTEX_ERROR) {
-			printf("[MUTEX_ERROR][ERROR_MUTEX_INIT]\n");
+			custom_print("[MUTEX_ERROR][ERROR_MUTEX_INIT]\n");
 		}
 	} else {
 		if(MUTEX_DEBUG_LEVEL >= MX_ALL_DISPLAY) {
-			printf("[MUTEX_INFO][MUTEX_INIT_OK]\n");
+			custom_print("[MUTEX_INFO][MUTEX_INIT_OK]\n");
 		}
 		list_add(MutexsList, node);
 	}
@@ -306,11 +317,11 @@ int destroy_mutex(pthread_mutex_t * mutex) {
 	res = pthread_mutex_destroy(mutex);
 	if (res != 0) {
 		if(MUTEX_DEBUG_LEVEL >= MX_MUTEX_ERROR) {
-			printf("[MUTEX_ERROR][ERROR_MUTEX_DESTROY]\n");
+			custom_print("[MUTEX_ERROR][ERROR_MUTEX_DESTROY]\n");
 		}
 	} else {
 		if(MUTEX_DEBUG_LEVEL >= MX_ALL_DISPLAY) {
-			printf("[MUTEX_INFO][MUTEX_INIT_DESTROY]\n");
+			custom_print("[MUTEX_INFO][MUTEX_INIT_DESTROY]\n");
 		}
 	}
 	return res;
@@ -324,23 +335,23 @@ int lock_mutex(pthread_mutex_t * mutex) {
 	MIDC * node;
 	int search_f(MIDC * data) { return( data->mutex_addr == mutex ); }
 	if ( (node = list_find(MutexsList, search_f)) == null ) {
-		printf("[CRITICAL_ERROR][UNREGISTERED_MUTEX]\n");
+		custom_print("[CRITICAL_ERROR][UNREGISTERED_MUTEX]\n");
 		node = malloc(sizeof(MIDC));
 		node->name = "UnknownMutex";
 		node->mutex_addr = mutex;
 	}
 
 	if(MUTEX_DEBUG_LEVEL >= MX_ONLY_LOCK_UNLOCK) {
-		printf("[MUTEX_INFO][TRYING_TO_LOCK_MUTEX*][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
+		custom_print("[MUTEX_INFO][TRYING_TO_LOCK_MUTEX*][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
 	}
 	res = pthread_mutex_lock(mutex);
 	if (res != 0) {
 		if(MUTEX_DEBUG_LEVEL >= MX_MUTEX_ERROR) {
-			printf("[MUTEX_ERROR][ERROR_AT_MUTEX_LOCK*][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
+			custom_print("[MUTEX_ERROR][ERROR_AT_MUTEX_LOCK*][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
 		}
 	} else {
 		if(MUTEX_DEBUG_LEVEL >= MX_ONLY_LOCK_UNLOCK) {
-			printf("[MUTEX_INFO][MUTEX_HAS_BEEN_LOCKED][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
+			custom_print("[MUTEX_INFO][MUTEX_HAS_BEEN_LOCKED][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
 		}
 	}
 	return res;
@@ -354,23 +365,23 @@ int unlock_mutex(pthread_mutex_t * mutex) {
 	MIDC * node;
 	int search_f(MIDC * data) { return( data->mutex_addr == mutex ); }
 	if ( (node = list_find(MutexsList, search_f)) == null ) {
-		printf("[CRITICAL_ERROR][UNREGISTERED_MUTEX]\n");
+		custom_print("[CRITICAL_ERROR][UNREGISTERED_MUTEX]\n");
 		node = malloc(sizeof(MIDC));
 		node->name = "UnknownMutex";
 		node->mutex_addr = mutex;
 	}
 
 	if(MUTEX_DEBUG_LEVEL >= MX_ONLY_LOCK_UNLOCK) {
-		printf("[MUTEX_INFO][TRYING_UNLOCK_MUTEX**][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
+		custom_print("[MUTEX_INFO][TRYING_UNLOCK_MUTEX**][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
 	}
 	res = pthread_mutex_unlock(mutex);
 	if (res != 0) {
 		if(MUTEX_DEBUG_LEVEL >= MX_MUTEX_ERROR) {
-			printf("[MUTEX_ERROR][ERROR_MUTEX_UNLOCK**][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
+			custom_print("[MUTEX_ERROR][ERROR_MUTEX_UNLOCK**][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
 		}
 	} else {
 		if(MUTEX_DEBUG_LEVEL >= MX_ONLY_LOCK_UNLOCK) {
-			printf("[MUTEX_INFO][MUTEX_BEEN_UNLOCKED**][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
+			custom_print("[MUTEX_INFO][MUTEX_BEEN_UNLOCKED**][%d][%s][%s]\n", pthread_self(), get_thread_name(pthread_self()), node->name);
 		}
 	}
 	return res;
@@ -391,7 +402,7 @@ int inform_thread_id(char * name) {
 		list_add(ThreadsList, node);
 	}
 
-	printf("[THREAD_DATA][INFORMING_THREAD_TID][%d][%s]\n", node->tid, name);
+	custom_print("[THREAD_DATA][INFORMING_THREAD_TID][%d][%s]\n", node->tid, name);
 	return pthread_self();
 }
 
@@ -488,12 +499,12 @@ void vaciar_comando(comando_t* unComando){
 }
 
 void imprimir_comando(comando_t* unComando){
-	printf("unComando->comando: %s\n",unComando->comando );
-	printf("unComando->parametro[0]: %s\n",unComando->parametro[0] );
-	printf("unComando->parametro[1]: %s\n",unComando->parametro[1] );
-	printf("unComando->parametro[2]: %s\n",unComando->parametro[2] );
-	printf("unComando->parametro[3]: %s\n",unComando->parametro[3] );
-	printf("unComando->parametro[4]: %s\n",unComando->parametro[4] );
+	custom_print("unComando->comando: %s\n",unComando->comando );
+	custom_print("unComando->parametro[0]: %s\n",unComando->parametro[0] );
+	custom_print("unComando->parametro[1]: %s\n",unComando->parametro[1] );
+	custom_print("unComando->parametro[2]: %s\n",unComando->parametro[2] );
+	custom_print("unComando->parametro[3]: %s\n",unComando->parametro[3] );
+	custom_print("unComando->parametro[4]: %s\n",unComando->parametro[4] );
 }
 
 
@@ -504,8 +515,8 @@ void * crear_consola(void (*execute)(comando_t*),char* unString) {
 	char *linea;
 	int quit = 0;
 
-	printf("Bienvenido/a a la consola de %s\n",unString);
-	printf("Escribi 'info' para obtener una lista de comandos\n\n");
+	custom_print("Bienvenido/a a la consola de %s\n",unString);
+	custom_print("Escribi 'info' para obtener una lista de comandos\n\n");
 
 	while(quit == 0){
 
@@ -529,7 +540,7 @@ void * crear_consola(void (*execute)(comando_t*),char* unString) {
 }
 
 void create_lql(LQLScript * script, char * filepath) {
-	printf("CREATING LQL\n\n");
+	custom_print("CREATING LQL\n\n");
 	script->file = fopen(filepath, "r");
 	script->line = NULL;
 	script->len = 0;
@@ -538,12 +549,13 @@ void create_lql(LQLScript * script, char * filepath) {
 
 Instruction * parse_lql_line(LQLScript * script) {
 	Instruction * i = null; int a, t;
+
 	if ((script->read = getline(&script->line, &script->len, script->file)) != -1) {
 
 		char * line = script->line;
 
 		if(line == NULL || string_equals_ignore_case(line, "")){
-			printf("ERROR");
+			custom_print("ERROR");
 			return null;
 		}
 
@@ -577,7 +589,7 @@ Instruction * parse_lql_line(LQLScript * script) {
 			i->table_name = split[1];
 			i->key = atoi(split[2]);
 
-			//printf("SEL %s %d\n", i->table_name, i->key);
+			//custom_print("SEL %s %d\n", i->table_name, i->key);
 		}else if(strcmp(split[0], "INSERT") == 0) {
 			i->i_type = INSERT;
 			i->table_name = split[1];
@@ -588,11 +600,8 @@ Instruction * parse_lql_line(LQLScript * script) {
 			i->value[strlen(i->value)-1] = '\0';
 
 			i->timestamp = unix_epoch();
-			if(strcmp(split[4], "") != 0) {
-				i->timestamp = strtoul(split[4], NULL, 0);
-			}
 
-			//printf("INS %s %d %s\n", i->table_name, i->key, i->value);
+			//custom_print("INS %s %d %s\n", i->table_name, i->key, i->value);
 		}else if(strcmp(split[0], "CREATE") == 0) {
 			i->i_type = CREATE;
 			i->table_name = split[1];
@@ -601,24 +610,28 @@ Instruction * parse_lql_line(LQLScript * script) {
 			i->partitions = atoi(split[3]);
 			i->compaction_time = strtoul(split[4], NULL, 0);
 
-			//printf("CRE %s %d %d %ul\n", i->table_name, i->c_type, i->partitions, i->compaction_time);
+			//custom_print("CRE %s %d %d %ul\n", i->table_name, i->c_type, i->partitions, i->compaction_time);
 		}else if(strcmp(split[0], "DESCRIBE") == 0) {
 			i->i_type = DESCRIBE;
 			i->table_name = split[1];
 
-			//printf("DES %s\n", i->table_name);
+			if(i->table_name == null) {
+				i->table_name = strdup("");
+			}
+
+			//custom_print("DES %s\n", i->table_name);
 		}else if(strcmp(split[0], "DROP") == 0) {
 			i->i_type = DROP;
 			i->table_name = split[1];
 
-			//printf("DRO %s\n", i->table_name);
+			//custom_print("DRO %s\n", i->table_name);
 		} else {
-			printf("UNSOPORTED %s", auxLine);
+			custom_print("UNSOPORTED %s", auxLine);
 		}
 
 		i->knl_line = auxLine;
 	} else {
-		printf("ERROR");
+		custom_print("ERROR");
 		return null;
 	}
 	return i;

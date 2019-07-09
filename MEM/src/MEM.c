@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 	strcpy(memory_logger_path, "memory_logger_");
 	strcat(memory_logger_path, config_get_string_value(config_file, "MEMORY_NUMBER"));
 	strcat(memory_logger_path, ".log");
-	logger = log_create(memory_logger_path, "MEM", true, LOG_LEVEL_TRACE);
+	logger = log_create(memory_logger_path, "MEM", false, LOG_LEVEL_TRACE);
 
 	config.lfs_socket = create_socket();
 	if (config.lfs_socket != -1 && (connect_socket(config.lfs_socket, config.lfs_ip, config.lfs_port)) == -1) {
@@ -636,15 +636,15 @@ int is_drop(Instruction* i){
 
 void show_list(InstructionList list){
 	list * run = first;
-	printf("elements: \n");
+	custom_print("elements: \n");
 	while(run != NULL){
-		printf(%i - ", run -> i -> i_type);
-		printf(%i - ", run -> i -> table_name);
-		printf(%i - ", run -> i -> key);
-		printf(%i - ", run -> i -> value);
-		printf(%i - ", run -> i -> c_type);
-		printf(%i - ", run -> i -> partitions);
-		printf(%i - ", run -> i -> compaction_time);
+		custom_print(%i - ", run -> i -> i_type);
+		custom_print(%i - ", run -> i -> table_name);
+		custom_print(%i - ", run -> i -> key);
+		custom_print(%i - ", run -> i -> value);
+		custom_print(%i - ", run -> i -> c_type);
+		custom_print(%i - ", run -> i -> partitions);
+		custom_print(%i - ", run -> i -> compaction_time);
 
 		run = run -> next;
 		free(run);
@@ -971,7 +971,7 @@ int server_function() {
 				for(a = 0 ; a < gossiping_count ; a++) {
 					MemPoolData * this_mem = list_get(gossiping_list, a);
 
-					log_info(logger, "   %d %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
+					log_info(logger, "   %d %s %d\n", this_mem->memory_id, this_mem->ip, this_mem->port);
 
 					send(fd, &this_mem->port, sizeof(int), 0);
 					send(fd, &this_mem->memory_id, sizeof(int), 0);
@@ -999,8 +999,10 @@ int server_function() {
 					creation_result = create_mem(table_name, consistency, partitions, compaction_time);
 
 					if(creation_result == false) {
+						custom_print("Tabla creada %s\n", table_name);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					} else {
+						custom_print("ERROR Tabla NO creada %s\n", table_name);
 						send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
 					}
 					break;
@@ -1023,10 +1025,13 @@ int server_function() {
 					log_info(logger, "%s", select_result);
 
 					if(select_result == null) {
+						custom_print("Select Fallo %s %d\n", table_name, key_select);
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					} else if(strcmp(select_result, "UNKNOWN") == 0) {
+						custom_print("Select Fallo %s %d\n", table_name, key_select);
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}else{
+						custom_print("Select %s %d = %s\n", table_name, key_select, select_result);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 						int res_len = strlen(select_result) + 1;
 						send(fd, &res_len, sizeof(int), 0);
@@ -1063,8 +1068,10 @@ int server_function() {
 					insert_result = insert_mem(table_name, key, value, timestamp);
 
 					if(insert_result){
+						custom_print("Insert fallo %s %d %s\n", table_name, key, value);
 						send_data(fd, OPERATION_FAILURE, 0, null);
 					}else{
+						custom_print("Insert realizado %s %d %s\n", table_name, key, value);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}
 					;
@@ -1082,8 +1089,10 @@ int server_function() {
 					int drop_result = drop_mem(table_name);
 
 					if(!drop_result){
+						custom_print("Drop realizado %s\n", table_name);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}else{
+						custom_print("Drop fallido %s\n", table_name);
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}
 
@@ -1152,10 +1161,10 @@ void execute_mem(comando_t* unComando){
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
 		if(parametro1[0] == '\0'){
-			printf("select no recibio el nombre de la tabla\n");
+			custom_print("select no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("select no recibio la key\n");
+			custom_print("select no recibio la key\n");
 			return;
 		}else{
 
@@ -1183,13 +1192,13 @@ void execute_mem(comando_t* unComando){
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
 		if(parametro1[0] == '\0'){
-			printf("insert no recibio el nombre de la tabla\n");
+			custom_print("insert no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("insert no recibio la key\n");
+			custom_print("insert no recibio la key\n");
 			return;
 		}else if (parametro3[0] == '\0'){
-			printf("insert no recibio el valor\n");
+			custom_print("insert no recibio el valor\n");
 			return;
 		}else {
 
@@ -1222,16 +1231,16 @@ void execute_mem(comando_t* unComando){
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
 		if(parametro1[0] == '\0'){
-			printf("create no recibio el nombre de la tabla\n");
+			custom_print("create no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("create no recibio el tipo de consistencia\n");
+			custom_print("create no recibio el tipo de consistencia\n");
 			return;
 		}else if (parametro3[0] == '\0'){
-			printf("create no recibio la particion\n");
+			custom_print("create no recibio la particion\n");
 			return;
 		}else if (parametro4[0] == '\0'){
-			printf("create no recibio el tiempo de compactacion\n");
+			custom_print("create no recibio el tiempo de compactacion\n");
 			return;
 		}else {
 
@@ -1281,7 +1290,7 @@ void execute_mem(comando_t* unComando){
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
-			printf("drop no recibio el nombre de la tabla\n");
+			custom_print("drop no recibio el nombre de la tabla\n");
 		}else drop_mem(parametro1);
 
 		//ESTE NO SE JOURNALEA
@@ -1313,15 +1322,15 @@ void execute_mem(comando_t* unComando){
 }
 
 void info(){
-    printf("SELECT\n La operación Select permite la obtención del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n SELECT [NOMBRE_TABLA] [KEY]\n\n");
+    custom_print("SELECT\n La operación Select permite la obtención del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n SELECT [NOMBRE_TABLA] [KEY]\n\n");
 
-    printf("INSERT\n La operación Insert permite la creación y/o actualización del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp]\n\n");
+    custom_print("INSERT\n La operación Insert permite la creación y/o actualización del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp]\n\n");
 
-    printf("CREATE\n La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:\n CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n\n");
+    custom_print("CREATE\n La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:\n CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n\n");
 
-    printf("DESCRIBE\n La operación Describe permite obtener la Metadata de una tabla en particular o de todas las tablas que el File System tenga. Para esto, se utiliza la siguiente nomenclatura:\n DESCRIBE [NOMBRE_TABLA]\n\n");
+    custom_print("DESCRIBE\n La operación Describe permite obtener la Metadata de una tabla en particular o de todas las tablas que el File System tenga. Para esto, se utiliza la siguiente nomenclatura:\n DESCRIBE [NOMBRE_TABLA]\n\n");
 
-    printf("DROP\n La operación Drop permite la eliminación de una tabla del file system. Para esto, se utiliza la siguiente nomenclatura:\n DROP [NOMBRE_TABLA]\n\n");
+    custom_print("DROP\n La operación Drop permite la eliminación de una tabla del file system. Para esto, se utiliza la siguiente nomenclatura:\n DROP [NOMBRE_TABLA]\n\n");
 }
 
 void tests_memoria(){

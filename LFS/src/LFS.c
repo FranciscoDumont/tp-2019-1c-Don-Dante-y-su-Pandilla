@@ -1257,23 +1257,23 @@ void execute_lfs(comando_t* unComando){
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
 		if(parametro1[0] == '\0'){
-			printf("select no recibio el nombre de la tabla\n");
+			custom_print("select no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("select no recibio la key\n");
+			custom_print("select no recibio la key\n");
 			return;
-		}else printf("El valor es %s", select_fs(parametro1,atoi(parametro2)));
+		}else custom_print("El valor es %s", select_fs(parametro1,atoi(parametro2)));
 
 	//INSERT
 	}else if (strcmp(comandoPrincipal,"insert")==0){
 		if(parametro1[0] == '\0'){
-			printf("insert no recibio el nombre de la tabla\n");
+			custom_print("insert no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("insert no recibio la key\n");
+			custom_print("insert no recibio la key\n");
 			return;
 		}else if (parametro3[0] == '\0'){
-			printf("insert no recibio el valor\n");
+			custom_print("insert no recibio el valor\n");
 			return;
 		}else if (parametro4[0] == '\0'){
 			insert_fs(parametro1,atoi(parametro2),parametro3,unix_epoch());	
@@ -1282,16 +1282,16 @@ void execute_lfs(comando_t* unComando){
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
 		if(parametro1[0] == '\0'){
-			printf("create no recibio el nombre de la tabla\n");
+			custom_print("create no recibio el nombre de la tabla\n");
 			return;
 		}else if (parametro2[0] == '\0'){
-			printf("create no recibio el tipo de consistencia\n");
+			custom_print("create no recibio el tipo de consistencia\n");
 			return;
 		}else if (parametro3[0] == '\0'){
-			printf("create no recibio la particion\n");
+			custom_print("create no recibio la particion\n");
 			return;
 		}else if (parametro4[0] == '\0'){
-			printf("create no recibio el tiempo de compactacion\n");
+			custom_print("create no recibio el tiempo de compactacion\n");
 			return;
 		}else create_fs(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
 	
@@ -1303,7 +1303,7 @@ void execute_lfs(comando_t* unComando){
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
-			printf("drop no recibio el nombre de la tabla\n");
+			custom_print("drop no recibio el nombre de la tabla\n");
 		}else drop_fs(parametro1);
 
 	//INFO
@@ -1314,13 +1314,13 @@ void execute_lfs(comando_t* unComando){
 }
 
 void info(){
-    printf("SELECT\n La operación Select permite la obtención del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n SELECT [NOMBRE_TABLA] [KEY]\n\n");
+    custom_print("SELECT\n La operación Select permite la obtención del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n SELECT [NOMBRE_TABLA] [KEY]\n\n");
 
-    printf("INSERT\n La operación Insert permite la creación y/o actualización del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp]\n\n");
+    custom_print("INSERT\n La operación Insert permite la creación y/o actualización del valor de una key dentro de una tabla. Para esto, se utiliza la siguiente nomenclatura:\n INSERT [NOMBRE_TABLA] [KEY] “[VALUE]” [Timestamp]\n\n");
 
-    printf("CREATE\n La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:\n CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n\n");
+    custom_print("CREATE\n La operación Create permite la creación de una nueva tabla dentro del file system. Para esto, se utiliza la siguiente nomenclatura:\n CREATE [NOMBRE_TABLA] [TIPO_CONSISTENCIA] [NUMERO_PARTICIONES] [COMPACTION_TIME]\n\n");
 
-    printf("DESCRIBE\n La operación Describe permite obtener la Metadata de una tabla en particular o de todas las tablas que el File System tenga. Para esto, se utiliza la siguiente nomenclatura:\n DESCRIBE [NOMBRE_TABLA]\n\n");
+    custom_print("DESCRIBE\n La operación Describe permite obtener la Metadata de una tabla en particular o de todas las tablas que el File System tenga. Para esto, se utiliza la siguiente nomenclatura:\n DESCRIBE [NOMBRE_TABLA]\n\n");
 
-    printf("DROP\n La operación Drop permite la eliminación de una tabla del file system. Para esto, se utiliza la siguiente nomenclatura:\n DROP [NOMBRE_TABLA]\n\n");
+    custom_print("DROP\n La operación Drop permite la eliminación de una tabla del file system. Para esto, se utiliza la siguiente nomenclatura:\n DROP [NOMBRE_TABLA]\n\n");
 }
