@@ -182,6 +182,7 @@ void add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
 			break;
 		case STRONG_HASH_CONSISTENCY:
 			list_add(CriterionHash.memories, &memory_id);
+			journal_to_memories_list(CriterionHash.memories);
 			break;
 	}
 }
