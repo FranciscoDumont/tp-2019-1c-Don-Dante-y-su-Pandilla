@@ -149,25 +149,19 @@ void running(int n) {
 	}
 }
 
-_Bool add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
-	MemPoolData * memory = getMemoryData(memory_id);
+void add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
 	log_info(logger, "ADDING %d TO %s", memory_id, consistency_to_char(type));
-	if(memory == null) {
-		log_info(logger, "ERROR, Memory %d NOT found", memory_id);
-		return false;
-	}
 	switch(type) {
 		case EVENTUAL_CONSISTENCY:
-			list_add(CriterionEventual.memories, memory);
+			list_add(CriterionEventual.memories, &memory_id);
 			break;
 		case STRONG_CONSISTENCY:
-			list_add(CriterionStrong.memories, memory);
+			list_add(CriterionStrong.memories, &memory_id);
 			break;
 		case STRONG_HASH_CONSISTENCY:
-			list_add(CriterionHash.memories, memory);
+			list_add(CriterionHash.memories, &memory_id);
 			break;
 	}
-	return true;
 }
 
 MemPoolData * getMemoryData(int id) {
