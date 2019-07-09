@@ -439,15 +439,16 @@ char * consistency_to_char(ConsistencyTypes consistency) {
 }
 
 ConsistencyTypes char_to_consistency(char * consistency) {
-	if(strcmp(consistency, "SC") == 0) {
+	if(strcasecmp(consistency, "SC") == 0) {
 		return STRONG_CONSISTENCY;
 	}
-	if(strcmp(consistency, "SHC") == 0) {
+	if(strcasecmp(consistency, "SHC") == 0) {
 		return STRONG_HASH_CONSISTENCY;
 	}
-	if(strcmp(consistency, "EC") == 0) {
+	if(strcasecmp(consistency, "EC") == 0) {
 		return EVENTUAL_CONSISTENCY;
 	}
+	return C_UNKNOWN;
 }
 
 //Consola

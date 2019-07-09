@@ -81,8 +81,6 @@ int main(int argc, char **argv) {
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
 
-	run_knl("hola.01");
-
 	for(qa = 0 ; qa < config.multiprocessing_grade ; qa++) {
 		pthread_t thread_r;
 		pthread_create(&thread_r, NULL, running, qa);
@@ -153,6 +151,7 @@ void running(int n) {
 
 _Bool add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
 	MemPoolData * memory = getMemoryData(memory_id);
+	log_info(logger, "ADDING %d TO %s", memory_id, consistency_to_char(type));
 	if(memory == null) {
 		log_info(logger, "ERROR, Memory %d NOT found", memory_id);
 		return false;
@@ -360,7 +359,7 @@ void execute_knl(comando_t* unComando){
 	char parametro4[20];
 	char parametro5[20];
 
-	imprimir_comando(unComando);
+	//imprimir_comando(unComando);
 
 	strcpy(comandoPrincipal,unComando->comando);
 	strcpy(parametro1,unComando->parametro[0]);
@@ -391,9 +390,8 @@ void execute_knl(comando_t* unComando){
 			log_info(logger, "insert no recibio el valor\n");
 			return;
 		}else if (parametro4[0] == '\0'){
-//			insert_knl(parametro1,atoi(parametro2),parametro3,unix_epoch());
+			//insert_knl(parametro1,atoi(parametro2),parametro3,unix_epoch());
 		}//else insert_knl(parametro1,atoi(parametro2),parametro3,strtoul(parametro4,NULL,10));
-
 	//CREATE
 	}else if (strcmp(comandoPrincipal,"create")==0){
 		if(parametro1[0] == '\0'){
@@ -409,21 +407,37 @@ void execute_knl(comando_t* unComando){
 			log_info(logger, "create no recibio el tiempo de compactacion\n");
 			return;
 		}//else create_knl(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
-	
 	//DESCRIBE
 	}else if (strcmp(comandoPrincipal,"describe")==0){
 		//chekea si parametro es nulo adentro de describe_knl
-//		describe_knl(parametro1);
-
+		//describe_knl(parametro1);
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
 			log_info(logger, "drop no recibio el nombre de la tabla\n");
 		}//else drop_knl(parametro1);
+	}else if (strcmp(comandoPrincipal,"add")==0){
+		int memid;
+		if(strcmp(parametro1, "memory") != 0) {
+			printf("Wrong syntax. ADD MEMORY");
+		} else {
+			memid = atoi(parametro2);
 
+			if(strcmp(parametro3, "to") != 0) {
+				//ERROR
+				printf("Wrong syntax. ADD MEMORY # TO");
+			} else {
+				ConsistencyTypes consistency = char_to_consistency(parametro4);
+				if(consistency == C_UNKNOWN) {
+					printf("Wrong syntax. ADD MEMORY # TO [EC/SC/SHC]");
+				} else {
+					add_memory_to_criterion(memid, consistency);
+				}
+			}
+		}
 	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
-//		info();
+		//info();
 	}
 }
 

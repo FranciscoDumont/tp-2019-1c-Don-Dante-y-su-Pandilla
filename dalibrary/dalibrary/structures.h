@@ -106,7 +106,8 @@ typedef struct _LFSMetadata {
 typedef enum _ConsistencyTypes {
 	STRONG_CONSISTENCY,
 	EVENTUAL_CONSISTENCY,
-	STRONG_HASH_CONSISTENCY
+	STRONG_HASH_CONSISTENCY,
+	C_UNKNOWN
 } ConsistencyTypes;
 
 typedef struct _LFSFileStruct {
