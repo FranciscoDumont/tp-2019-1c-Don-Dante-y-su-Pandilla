@@ -11,6 +11,8 @@ t_list * ready_queue;
 t_list * exit_queue;
 t_list * exec_threads;
 
+t_list * tables_dict;
+
 unsigned int lql_max_id;
 
 pthread_mutex_t ready_queue_mutex;
@@ -42,6 +44,8 @@ int main(int argc, char **argv) {
 	ready_queue = list_create();
 	exit_queue = list_create();
 	exec_threads = list_create();
+
+	tables_dict = list_create();
 
 	lql_max_id = 0;
 
@@ -127,9 +131,8 @@ void running(int n) {
 			}
 		} else {
 			log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
-			sleep(13);
 		}
-		//sleep(config.exec_delay/1000);
+		sleep(config.exec_delay/1000);
 	}
 }
 
@@ -296,6 +299,17 @@ _Bool exec_lql_line(LQLScript * lql) {
 	Instruction * i = parse_lql_line(lql);
 
 	print_op_debug(i);
+	switch(i->i_type) {
+		case CREATE:
+			break;
+		case SELECT:
+			break;
+		case INSERT:
+			break;
+		case DESCRIBE:
+			break;
+		case DROP:
+			break;
 
 	return true;
 }
