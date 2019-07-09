@@ -243,14 +243,19 @@ _Bool exec_lql_line(LQLScript * lql) {
 	lock_mutex(&criterions_mutex);
 	switch(i->i_type) {
 		case CREATE:
+			create_knl(i->table_name, i->c_type, i->partitions, i->compaction_time);
 			break;
 		case SELECT:
+			select_knl(i->table_name, i->key);
 			break;
 		case INSERT:
+			insert_knl(i->table_name, i->key, i->value, i->timestamp);
 			break;
 		case DESCRIBE:
+			refresh_metadata(true);
 			break;
 		case DROP:
+			drop_knl(i->table_name);
 			break;
 	}
 	unlock_mutex(&criterions_mutex);

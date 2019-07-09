@@ -587,6 +587,11 @@ Instruction * parse_lql_line(LQLScript * script) {
 			i->value = i->value+1;
 			i->value[strlen(i->value)-1] = '\0';
 
+			i->timestamp = unix_epoch();
+			if(strcmp(split[4], "") != 0) {
+				i->timestamp = strtoul(split[4], NULL, 0);
+			}
+
 			//printf("INS %s %d %s\n", i->table_name, i->key, i->value);
 		}else if(strcmp(split[0], "CREATE") == 0) {
 			i->i_type = CREATE;
