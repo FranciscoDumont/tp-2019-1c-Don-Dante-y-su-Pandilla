@@ -88,135 +88,154 @@ int lfs_server() {
 	}
 
 	void new(int fd, char * ip, int port) {
-		log_info(logger, "NEW MEMORY CONNECTED!");
+		log_info(logger, "NEW MEMORY CONNECTED! %d", fd);
 	}
 	void lost(int fd, char * ip, int port) {
 		log_info(logger, "MEMORY DISCONNECTED", ip, port);
 	}
 	void incoming(int fd, char * ip, int port, MessageHeader * header) {
-		int table_name_size;
-		char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 
 		switch(header->type) {
 			case HANDSHAKE_MEM_LFS:
 				;
-				log_info(logger, "FOUND NEW MEMORY IN %s:%d", ip, port);
+				log_info(logger, "FOUND NEW MEMORY");
 				send_data(fd, HANDSHAKE_MEM_LFS_OK, sizeof(int), &config.value_size);
 				break;
 			case MEM_LFS_CREATE:
-				;
-				log_info(logger, "NEW TABLE WILL BE CREATED");
+				{
+					;
+					log_info(logger, "NEW TABLE WILL BE CREATED");
 
-				recv(fd, &table_name_size, sizeof(int), 0);
+					int table_name_size;
+					recv(fd, &table_name_size, sizeof(int), 0);
+					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 
-				recv(fd, table_name, table_name_size, 0);
-				table_name[table_name_size / sizeof(char)] = '\0';
-				table_name = to_upper_string(table_name);
+					recv(fd, table_name, table_name_size, 0);
+					table_name[table_name_size / sizeof(char)] = '\0';
+					table_name = to_upper_string(table_name);
 
-				int consistency, partitions, compaction_time;
-				recv(fd, &consistency, sizeof(int), 0);
-				recv(fd, &partitions, sizeof(int), 0);
-				recv(fd, &compaction_time, sizeof(int), 0);
+					int consistency, partitions, compaction_time;
+					recv(fd, &consistency, sizeof(int), 0);
+					recv(fd, &partitions, sizeof(int), 0);
+					recv(fd, &compaction_time, sizeof(int), 0);
 
-				int creation_result;
-				creation_result = create_fs(table_name, consistency, partitions, compaction_time);
+					int creation_result;
+					creation_result = create_fs(table_name, consistency, partitions, compaction_time);
 
-				if(creation_result == true) {
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-				} else {
-					send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
+					if(creation_result == true) {
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+					} else {
+						send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
+					}
 				}
 				break;
 			case MEM_LFS_SELECT:
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
+				{
+					int table_name_size;
+					recv(fd, &table_name_size, sizeof(int), 0);
+					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 
-				table_name[table_name_size / sizeof(char)] = '\0';
-				table_name = to_upper_string(table_name);
+					recv(fd, table_name, table_name_size, 0);
+					table_name[table_name_size / sizeof(char)] = '\0';
+					table_name = to_upper_string(table_name);
 
 
-				char * select_result;
-				int key_select;
-				recv(fd, &key_select, sizeof(int), 0);
+					char * select_result;
+					int key_select;
+					recv(fd, &key_select, sizeof(int), 0);
 
-				select_result = select_fs(table_name, key_select);
+					select_result = select_fs(table_name, key_select);
 
-				if(strcmp(select_result, "UNKNOWN") == 0){
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
-				}else{
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-					int res_len = strlen(select_result) + 1;
-					send(fd, &res_len, sizeof(int), 0);
-					send(fd, select_result, (res_len-1) * sizeof(char), 0);
-					char aosdjaosdoasd = '\0';
-					send(fd, &aosdjaosdoasd, sizeof(char), 0);
+					if(strcmp(select_result, "UNKNOWN") == 0){
+						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					}else{
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+						int res_len = strlen(select_result) + 1;
+						send(fd, &res_len, sizeof(int), 0);
+						send(fd, select_result, (res_len-1) * sizeof(char), 0);
+						char aosdjaosdoasd = '\0';
+						send(fd, &aosdjaosdoasd, sizeof(char), 0);
+					}
+					//free(select_result)
+					;
 				}
-				//free(select_result)
-				;
 				break;
 			case MEM_LFS_INSERT:
-				//int insert_fs(char * table_name, int key, char * value, unsigned long timestamp)
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
+				{
+					//int insert_fs(char * table_name, int key, char * value, unsigned long timestamp)
+					int table_name_size;
+					recv(fd, &table_name_size, sizeof(int), 0);
+					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 
-				table_name[table_name_size / sizeof(char)] = '\0';
-				table_name = to_upper_string(table_name);
+					recv(fd, table_name, table_name_size, 0);
+					table_name[table_name_size / sizeof(char)] = '\0';
+					table_name = to_upper_string(table_name);
 
-				int key;
+					int key;
 
-				unsigned long timestamp;
-				recv(fd, &key, sizeof(int), 0);
-				// -- manejo del value size 🙊 --
-				int value_size;
-				char * value = malloc(sizeof(config.value_size) + sizeof(char));
-				recv(fd, &value_size, sizeof(int), 0);
-				recv(fd, value, value_size, 0);
-				value[value_size / sizeof(char)] = '\0';
-				// -----------------------------
-				recv(fd, &timestamp, sizeof(unsigned long), 0);
+					unsigned long timestamp;
+					recv(fd, &key, sizeof(int), 0);
+					// -- manejo del value size 🙊 --
+					int value_size;
+					char * value = malloc(sizeof(config.value_size) + sizeof(char));
+					recv(fd, &value_size, sizeof(int), 0);
+					recv(fd, value, value_size, 0);
+					value[value_size / sizeof(char)] = '\0';
+					// -----------------------------
+					recv(fd, &timestamp, sizeof(unsigned long), 0);
 
-				int insert_result;
-				insert_result = insert_fs(table_name, key, value, timestamp);
-				free(value);
+					int insert_result;
+					insert_result = insert_fs(table_name, key, value, timestamp);
+					free(value);
 
-				if(insert_result == 0){
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
-				}else{
-					send_data(fd, OPERATION_SUCCESS, 0, null);
+					if(insert_result == 0){
+						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					}else{
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+					}
+
+					//free(value);
+					;
 				}
-
-				//free(value);
-				;
 				break;
 			case MEM_LFS_DESCRIBE:
-				;
-				//void describe_fs(char * table_name)
-				int describe_result;
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
+				{;
+					//void describe_fs(char * table_name)
+					int describe_result;
+					int table_name_size;
+					recv(fd, &table_name_size, sizeof(int), 0);
+					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 
-				describe_result = describe_fs(table_name);
+					recv(fd, table_name, table_name_size, 0);
+					table_name[table_name_size / sizeof(char)] = '\0';
 
-				if(describe_result == true){
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-				}else{
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					describe_result = describe_fs(table_name);
+
+					if(describe_result == true){
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+					}else{
+						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					}
 				}
-
 				break;
 			case MEM_LFS_DROP:
-				;
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
+					;
+				{
+					int table_name_size;
+					recv(fd, &table_name_size, sizeof(int), 0);
+					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
 
-				int drop_result = drop_fs(table_name);
+					recv(fd, table_name, table_name_size, 0);
+					table_name[table_name_size / sizeof(char)] = '\0';
 
-				if(drop_result == true){
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-				}else{
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					int drop_result = drop_fs(table_name);
+
+					if(drop_result == true){
+						send_data(fd, OPERATION_SUCCESS, 0, null);
+					}else{
+						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+					}
 				}
-
 				break;
 
 		}

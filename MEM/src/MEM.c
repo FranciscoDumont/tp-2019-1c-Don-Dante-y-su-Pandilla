@@ -29,7 +29,7 @@ typedef struct {
 
 t_list * instruction_list;
 
-pthread_mutex_t * journal_by_time;
+pthread_mutex_t journal_by_time;
 
 void gossiping_start(pthread_t * thread);
 void server_start(pthread_t * thread);
@@ -437,7 +437,7 @@ int drop_mem(char * table_name){
 int journal(){
 	
 	int r;
-	r = lock_mutex(journal_by_time);
+	r = lock_mutex(&journal_by_time);
 	if(r == 0){
 
 		//Solo se journalea el insert
@@ -497,7 +497,7 @@ int journal(){
 			free_tables(instruction_list);
 			list_clean(instruction_list);
 	}
-	r = unlock_mutex(journal_by_time);
+	r = unlock_mutex(&journal_by_time);
 	return EXIT_SUCCESS;
 }
 
