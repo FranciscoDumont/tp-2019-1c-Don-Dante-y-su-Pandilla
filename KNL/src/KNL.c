@@ -28,12 +28,12 @@ _Bool exec_lql_line(LQLScript * lql);
 void print_op_debug(Instruction * i);
 void gossiping_start(pthread_t * thread);
 void metadata_refresh_loop();
+void refresh_metadata(_Bool print_x_screen);
 
 //TODO: Implementar luego
 int insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
 int create_knl(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
 int select_knl(char * table_name, int key);
-int describe_knl(char * table_name);
 int drop_knl(char * table_name);
 void execute_knl(comando_t* unComando);
 void info();
@@ -269,8 +269,7 @@ void journal_to_criterions_memories() {
 	unlock_mutex(&criterions_mutex);
 }
 
-void refresh_metadata() {
-	log_info(logger, "tutututu");
+void refresh_metadata(_Bool print_x_screen) {
 	MemPoolData * aMemory; int memsocket;
 	if(gossiping_list->elements_count == 0) {
 		return;
@@ -296,7 +295,8 @@ void refresh_metadata() {
 			table->table_name = malloc(table_n_l * sizeof(char));
 			recv(memsocket, table->table_name, table_n_l * sizeof(char), 0);
 
-			log_info(logger, "ASDASD %s %d", table->table_name, table->consistency);
+			if(print_x_screen)
+				log_info(logger, "ASDASD %s %d", table->table_name, table->consistency);
 
 			//TABLE
 			list_add(tables_dict, table);
@@ -306,7 +306,7 @@ void refresh_metadata() {
 
 void metadata_refresh_loop() {
 	while(1) {
-		refresh_metadata();
+		refresh_metadata(false);
 		sleep(config.metadata_refresh / 1000);
 	}
 }
@@ -375,7 +375,7 @@ void gossiping_thread() {
 			}
 
 			if(tables_dict->elements_count == 0) {
-				refresh_metadata();
+				refresh_metadata(false);
 			}
 		}
 
@@ -455,7 +455,20 @@ void execute_knl(comando_t* unComando){
 	//DESCRIBE
 	}else if (strcmp(comandoPrincipal,"describe")==0){
 		//chekea si parametro es nulo adentro de describe_knl
-		//describe_knl(parametro1);
+		if(strcmp(parametro1, "") == 0) {
+			refresh_metadata(true);
+		} else {
+			refresh_metadata(false);
+			_Bool find_table(MemtableTableReg * t) {
+				return strcmp(t->table_name, parametro1) == 0;
+			}
+			MemtableTableReg * result = list_find(tables_dict, find_table);
+			if(result == null) {
+				printf("La tabla %s no existe", parametro1);
+			} else {
+				printf("Tabla %s Consistencia %d", result->table_name, result->consistency);
+			}
+		}
 	//DROP
 	}else if (strcmp(comandoPrincipal,"drop")==0){
 		if(parametro1[0] == '\0'){
@@ -574,36 +587,6 @@ int select_knl(char * table_name, int key){
 	}
 	return exit_value;
 }
-
-
-int describe_knl(char * table_name){
-	log_info(logger, "INICIA DESCRIBE: describe_mem(%s)", table_name);
-	int exit_value;
-	send_data(config.a_memory_ip, KNL_MEM_DESCRIBE, 0, null);
-
-	if(table_name == null){
-		table_name = strdup("");
-	}
-
-	int table_name_len = strlen(table_name)+1;
-
-	send(config.a_memory_ip, &table_name_len,  sizeof(int), 0);
-	send(config.a_memory_ip, table_name,       table_name_len,0);
-
-
-	MessageHeader * header = malloc(sizeof(MessageHeader));
-	recieve_header(config.a_memory_ip, header);
-	if(header->type == OPERATION_SUCCESS) {
-		log_info(logger, "LFS ANSWERED SUCCESFULLY");
-		log_info(logger, "DESCRIBE EN EL FILESYSTEM");
-		exit_value = EXIT_SUCCESS;
-	} else {
-		log_info(logger, "DESCRIBE ERROR");
-		exit_value = EXIT_FAILURE;
-	}
-	return exit_value;
-}
-
 
 int drop_knl(char * table_name){
 	log_info(logger, "INICIA DROP: drop_knl(%s)", table_name);
