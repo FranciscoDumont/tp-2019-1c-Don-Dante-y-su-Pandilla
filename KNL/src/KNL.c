@@ -539,7 +539,7 @@ MemtableTableReg * find_table(char * name) {
 	return list_find(tables_dict, is_selected);
 }
 
-MemPoolData * select_memory_by_table(MemtableTableReg * table) {
+MemPoolData * select_memory_by_table(MemtableTableReg * table, int key) {
 	//TODO
 	switch(table->consistency) {
 	case STRONG_CONSISTENCY:
@@ -547,7 +547,7 @@ MemPoolData * select_memory_by_table(MemtableTableReg * table) {
 			return null;
 		return list_get(CriterionStrong.memories, 0);
 		break;
-	case STRONG_HASH_CONSISTENCY:
+	case EVENTUAL_CONSISTENCY:
 		if(CriterionEventual.rr_next_to_use >= CriterionEventual.memories->elements_count) {
 			CriterionEventual.rr_next_to_use = 0;
 			if(CriterionEventual.memories->elements_count != 0) {
@@ -559,7 +559,15 @@ MemPoolData * select_memory_by_table(MemtableTableReg * table) {
 			return list_get(CriterionEventual.memories, (CriterionEventual.rr_next_to_use-1));
 		}
 		break;
-	case EVENTUAL_CONSISTENCY:
+	case STRONG_HASH_CONSISTENCY:
+		if(CriterionHash.memories->elements_count == 0)
+			return null;
+		if(key == -1) {
+			return list_get(CriterionHash.memories, 0);
+		} else {
+			int selected_index = key % CriterionHash.memories->elements_count;
+			return list_get(CriterionHash.memories, selected_index);
+		}
 		break;
 	}
 	return null;
@@ -575,7 +583,7 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 		return false;
 	}
 
-	MemPoolData * selected_memory = select_memory_by_table(tReg);
+	MemPoolData * selected_memory = select_memory_by_table(tReg, key);
 	if(selected_memory == null) {
 		log_error(logger, "No available memory for table");
 		return false;
@@ -735,7 +743,7 @@ _Bool select_knl(char * table_name, int key){
 		return false;
 	}
 
-	MemPoolData * selected_memory = select_memory_by_table(tReg);
+	MemPoolData * selected_memory = select_memory_by_table(tReg, -1);
 	if(selected_memory == null) {
 		log_error(logger, "No available memory for table");
 		return false;
@@ -796,7 +804,7 @@ _Bool drop_knl(char * table_name){
 		return false;
 	}
 
-	MemPoolData * selected_memory = select_memory_by_table(tReg);
+	MemPoolData * selected_memory = select_memory_by_table(tReg, -1);
 	if(selected_memory == null) {
 		log_error(logger, "No available memory for table");
 		return false;
