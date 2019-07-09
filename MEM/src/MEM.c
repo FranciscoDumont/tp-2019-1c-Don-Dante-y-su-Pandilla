@@ -64,7 +64,7 @@ void consola_mem();
 int insert_mem(char * table_name, int key, char * value, unsigned long timestamp);
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time);
 char * select_mem(char * table_name, int key);
-int describe_mem(char * table_name);
+t_list * describe_mem(char * table_name);
 int drop_mem(char * table_name);
 void execute_mem(comando_t* unComando);
 void info();
@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
 	instruction_list = list_create();
 
 	//cuidado aca ndeaaa skereeeeeeee
-	tests_memoria();
+	//tests_memoria();
 
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
@@ -370,34 +370,53 @@ char * select_mem(char * table_name, int key){
 
 }
 
-int describe_mem(char * table_name){
+t_list * describe_mem(char * table_name){
+	t_list * result = list_create();
 	log_info(logger, "INICIA DESCRIBE: describe_mem(%s)", table_name);
-	int exit_value;
+	int exit_value = EXIT_FAILURE, f, a;
 	send_data(config.lfs_socket, MEM_LFS_DESCRIBE, 0, null);
 
-	if(table_name == null){
-		table_name = strdup("");
-	}
+	if(strcmp(table_name, "") == 0){
+		int z = 0;
+		send(config.lfs_socket, &z, sizeof(int), 0);
+		recv(config.lfs_socket, &f, sizeof(int), 0);
 
-	int table_name_len = strlen(table_name)+1;
+		for(a=0 ; a<f ; a++) {
+			MemtableTableReg * table = malloc(sizeof(MemtableTableReg));
 
-	send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
-	send(config.lfs_socket, table_name,       table_name_len,0);
+			int table_n_l;
+			recv(config.lfs_socket, table, sizeof(MemtableTableReg), 0);
+			recv(config.lfs_socket, &table_n_l, sizeof(int), 0);
+			table->table_name = malloc(table_n_l * sizeof(char));
+			recv(config.lfs_socket, table->table_name, table_n_l * sizeof(char), 0);
 
+			list_add(result, table);
 
-	MessageHeader * header = malloc(sizeof(MessageHeader));
-	recieve_header(config.lfs_socket, header);
-	if(header->type == OPERATION_SUCCESS) {
-		log_info(logger, "LFS ANSWERED SUCCESFULLY");
-		log_info(logger, "DESCRIBE EN EL FILESYSTEM");
-		exit_value = EXIT_SUCCESS;
+			exit_value = EXIT_SUCCESS;
+		}
 	} else {
-		log_info(logger, "DESCRIBE ERROR");
-		exit_value = EXIT_FAILURE;
+		int table_name_len = strlen(table_name)+1;
+		send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
+		send(config.lfs_socket, table_name,       table_name_len, 0);
+
+		recv(config.lfs_socket, &f, sizeof(int), 0);
+		log_info(logger, "(%d)", f);
+		if(f == 0) {
+			exit_value = EXIT_FAILURE;
+			list_destroy(result);
+			result = null;
+		} else {
+			MemtableTableReg * table = malloc(sizeof(MemtableTableReg));
+			recv(config.lfs_socket, table, sizeof(MemtableTableReg), 0);
+			table->table_name = table_name;
+
+			list_add(result, table);
+
+			exit_value = EXIT_SUCCESS;
+		}
 	}
 
-
-	return exit_value;
+	return result;
 }
 
 int drop_mem(char * table_name){
@@ -1030,22 +1049,6 @@ int server_function() {
 				//free(value);
 				;
 				break;
-			case KNL_MEM_DESCRIBE:
-				;
-				//void describe_fs(char * table_name)
-				int describe_result;
-				recv(fd, &table_name_size, sizeof(int), 0);
-				recv(fd, table_name, table_name_size, 0);
-
-				describe_result = describe_mem(table_name);
-
-				if(describe_result == true){
-					send_data(fd, OPERATION_SUCCESS, 0, null);
-				}else{
-					send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
-				}
-
-				break;
 			case KNL_MEM_DROP:
 				;
 				recv(fd, &table_name_size, sizeof(int), 0);
@@ -1064,6 +1067,21 @@ int server_function() {
 				;
 				journal();
 				send_data(fd, MEM_KNL_JOURNAL_OK, 0, null);
+				break;
+			case KNL_MEM_DESCRIBE_METADATA:
+				;
+
+				t_list * describe_result = describe_mem("");
+				int q = describe_result->elements_count, rec;
+				send(fd, &q, sizeof(int), 0);
+				for(rec=0 ; rec<q ; rec++) {
+					MemtableTableReg * table = list_get(describe_result, rec);
+					int table_n_l = strlen(table->table_name) + 1;
+					send(fd, table, sizeof(MemtableTableReg), 0);
+					send(fd, &table_n_l, sizeof(int), 0);
+					send(fd, table->table_name, table_n_l * sizeof(char), 0);
+				}
+
 				break;
 		}
 	}

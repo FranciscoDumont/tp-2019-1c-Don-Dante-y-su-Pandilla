@@ -27,6 +27,7 @@ void running();
 _Bool exec_lql_line(LQLScript * lql);
 void print_op_debug(Instruction * i);
 void gossiping_start(pthread_t * thread);
+void metadata_refresh_loop();
 
 //TODO: Implementar luego
 int insert_knl(char * table_name, int key, char * value, unsigned long timestamp);
@@ -90,11 +91,15 @@ int main(int argc, char **argv) {
 	pthread_t knl_console_id;
 	pthread_create(&knl_console_id, NULL, consola_knl, NULL);
 
-	pthread_detach(thread_g);
+	pthread_t refresh_mtdt_id;
+	pthread_create(&refresh_mtdt_id, NULL, metadata_refresh_loop, NULL);
+
 	for(qa = 0 ; qa < config.multiprocessing_grade ; qa++) {
 		pthread_t * t = list_get(exec_threads, qa);
 		pthread_join(*t, NULL);
 	}
+	pthread_join(refresh_mtdt_id, NULL);
+	pthread_join(thread_g, NULL);
 
 	return EXIT_SUCCESS;
 }
@@ -264,6 +269,48 @@ void journal_to_criterions_memories() {
 	unlock_mutex(&criterions_mutex);
 }
 
+void refresh_metadata() {
+	log_info(logger, "tutututu");
+	MemPoolData * aMemory; int memsocket;
+	if(gossiping_list->elements_count == 0) {
+		return;
+	}
+	aMemory = list_get(gossiping_list, 0);
+	if ((memsocket = create_socket()) == -1) {
+		memsocket = -1;
+	}
+	if (memsocket != -1 && (connect_socket(memsocket, aMemory->ip, aMemory->port)) == -1) {
+		memsocket = -1;
+	}
+	if(memsocket != -1) {
+		list_clean(tables_dict);
+		send_data(memsocket, KNL_MEM_DESCRIBE_METADATA, 0, null);
+		int f, a;
+		recv(memsocket, &f, sizeof(int), 0);
+		for(a=0 ; a<f ; a++) {
+			MemtableTableReg * table = malloc(sizeof(MemtableTableReg));
+
+			int table_n_l;
+			recv(memsocket, table, sizeof(MemtableTableReg), 0);
+			recv(memsocket, &table_n_l, sizeof(int), 0);
+			table->table_name = malloc(table_n_l * sizeof(char));
+			recv(memsocket, table->table_name, table_n_l * sizeof(char), 0);
+
+			log_info(logger, "ASDASD %s %d", table->table_name, table->consistency);
+
+			//TABLE
+			list_add(tables_dict, table);
+		}
+	}
+}
+
+void metadata_refresh_loop() {
+	while(1) {
+		refresh_metadata();
+		sleep(config.metadata_refresh / 1000);
+	}
+}
+
 //Gossiping
 void inform_gossiping_pool() {
 	log_info(logger, "GOSSIPING LIST START");
@@ -325,6 +372,10 @@ void gossiping_thread() {
 				log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
 
 				add_to_pool(this_mem);
+			}
+
+			if(tables_dict->elements_count == 0) {
+				refresh_metadata();
 			}
 		}
 

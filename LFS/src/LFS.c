@@ -200,21 +200,32 @@ int lfs_server() {
 				break;
 			case MEM_LFS_DESCRIBE:
 				{;
-					//void describe_fs(char * table_name)
-					int describe_result;
-					int table_name_size;
-					recv(fd, &table_name_size, sizeof(int), 0);
-					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
+					int sz;
+					recv(fd, &sz, sizeof(int), 0);
+					if(sz == 0) {
+						int q = memtable->elements_count, rec;
+						send(fd, &q, sizeof(int), 0);
+						for(rec=0 ; rec<q ; rec++) {
+							MemtableTableReg * table = list_get(memtable, rec);
+							int table_n_l = strlen(table->table_name) + 1;
+							send(fd, table, sizeof(MemtableTableReg), 0);
+							send(fd, &table_n_l, sizeof(int), 0);
+							send(fd, table->table_name, table_n_l * sizeof(char), 0);
+						}
+					} else {
+						char * table_name = malloc(sizeof(char) * sz);
+						recv(fd, table_name, sz, 0);
 
-					recv(fd, table_name, table_name_size, 0);
-					table_name[table_name_size / sizeof(char)] = '\0';
-
-					describe_result = describe_fs(table_name);
-
-					if(describe_result == true){
-						send_data(fd, OPERATION_SUCCESS, 0, null);
-					}else{
-						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+						MemtableTableReg * table = table_exists(table_name);
+						int f;
+						if(table == null) {
+							f = 0;
+							send(fd, &f, sizeof(int), 0);
+						} else {
+							f = 1;
+							send(fd, &f, sizeof(int), 0);
+							send(fd, table, sizeof(MemtableTableReg), 0);
+						}
 					}
 				}
 				break;
