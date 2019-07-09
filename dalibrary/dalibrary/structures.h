@@ -211,5 +211,10 @@ typedef struct _lql {
 	unsigned int lqlid;
 } LQLScript;
 
+typedef struct _consistency_criterion {
+	ConsistencyTypes type;
+	t_list * memories;
+} ConsistencyCriterion;
+
 
 #endif /* DALIBRARY_STRUCTURES_H_ */

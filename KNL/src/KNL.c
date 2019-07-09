@@ -11,6 +11,10 @@ t_list * ready_queue;
 t_list * exit_queue;
 t_list * exec_threads;
 
+ConsistencyCriterion CriterionStrong;
+ConsistencyCriterion CriterionEventual;
+ConsistencyCriterion CriterionHash;
+
 t_list * tables_dict;
 
 unsigned int lql_max_id;
@@ -44,6 +48,15 @@ int main(int argc, char **argv) {
 	ready_queue = list_create();
 	exit_queue = list_create();
 	exec_threads = list_create();
+
+	CriterionEventual.type = EVENTUAL_CONSISTENCY;
+	CriterionEventual.memories = list_create();
+
+	CriterionHash.type = STRONG_HASH_CONSISTENCY;
+	CriterionHash.memories = list_create();
+
+	CriterionStrong.type = STRONG_CONSISTENCY;
+	CriterionStrong.memories = list_create();
 
 	tables_dict = list_create();
 
@@ -133,6 +146,88 @@ void running(int n) {
 			log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
 		}
 		sleep(config.exec_delay/1000);
+	}
+}
+
+_Bool add_memory_to_criterion(int memory_id, ConsistencyTypes type) {
+	MemPoolData * memory = getMemoryData(memory_id);
+	if(memory == null) {
+		return false;
+	}
+	switch(type) {
+		case EVENTUAL_CONSISTENCY:
+			list_add(CriterionEventual.memories, memory);
+			break;
+		case STRONG_CONSISTENCY:
+			list_add(CriterionStrong.memories, memory);
+			break;
+		case STRONG_HASH_CONSISTENCY:
+			list_add(CriterionHash.memories, memory);
+			break;
+	}
+	return true;
+}
+
+MemPoolData * getMemoryData(int id) {
+	_Bool find_by_id(int * mid) {
+		return (*mid) == id;
+	}
+	return list_find(gossiping_list, find_by_id);
+}
+
+void run_knl(char * filepath) {
+	LQLScript * lql = malloc(sizeof(LQLScript));
+	lql->state = NEW;
+	lql->lqlid = lql_max_id++;
+	list_add(new_queue, lql);
+
+	create_lql(lql, filepath);
+	_Bool is_same_pointer(void * _lql) {
+		return _lql == lql;
+	}
+	list_remove_by_condition(new_queue, is_same_pointer);
+	lock_mutex(&ready_queue_mutex);
+	list_add(ready_queue, lql);
+	lql->state = READY;
+	unlock_mutex(&ready_queue_mutex);
+}
+
+_Bool exec_lql_line(LQLScript * lql) {
+	Instruction * i = parse_lql_line(lql);
+
+	print_op_debug(i);
+	switch(i->i_type) {
+		case CREATE:
+			break;
+		case SELECT:
+			break;
+		case INSERT:
+			break;
+		case DESCRIBE:
+			break;
+		case DROP:
+			break;
+
+	return true;
+}
+
+void print_op_debug(Instruction * i) {
+	switch(i->i_type) {
+		case CREATE:
+			printf("CREATE %s %s %d %d", i->table_name, consistency_to_char(i->c_type), i->partitions, i->compaction_time);
+			break;
+		case SELECT:
+			printf("SELECT %s %d", i->table_name, i->key);
+			break;
+		case INSERT:
+			printf("INSERT %s %d %s", i->table_name, i->key, i->value);
+			break;
+		case DESCRIBE:
+			printf("DESCRIBE %s", i->table_name);
+			break;
+		case DROP:
+			printf("DROP %s", i->table_name);
+			break;
 	}
 }
 
@@ -277,63 +372,6 @@ int drop_knl(char * table_name){
 
 	return exit_value;
 }
-
-void run_knl(char * filepath) {
-	LQLScript * lql = malloc(sizeof(LQLScript));
-	lql->state = NEW;
-	lql->lqlid = lql_max_id++;
-	list_add(new_queue, lql);
-
-	create_lql(lql, filepath);
-	_Bool is_same_pointer(void * _lql) {
-		return _lql == lql;
-	}
-	list_remove_by_condition(new_queue, is_same_pointer);
-	lock_mutex(&ready_queue_mutex);
-	list_add(ready_queue, lql);
-	lql->state = READY;
-	unlock_mutex(&ready_queue_mutex);
-}
-
-_Bool exec_lql_line(LQLScript * lql) {
-	Instruction * i = parse_lql_line(lql);
-
-	print_op_debug(i);
-	switch(i->i_type) {
-		case CREATE:
-			break;
-		case SELECT:
-			break;
-		case INSERT:
-			break;
-		case DESCRIBE:
-			break;
-		case DROP:
-			break;
-
-	return true;
-}
-
-void print_op_debug(Instruction * i) {
-	switch(i->i_type) {
-		case CREATE:
-			printf("CREATE %s %s %d %d", i->table_name, consistency_to_char(i->c_type), i->partitions, i->compaction_time);
-			break;
-		case SELECT:
-			printf("SELECT %s %d", i->table_name, i->key);
-			break;
-		case INSERT:
-			printf("INSERT %s %d %s", i->table_name, i->key, i->value);
-			break;
-		case DESCRIBE:
-			printf("DESCRIBE %s", i->table_name);
-			break;
-		case DROP:
-			printf("DROP %s", i->table_name);
-			break;
-	}
-}
-
 
 //Gossiping
 void inform_gossiping_pool() {
