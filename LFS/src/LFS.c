@@ -1035,7 +1035,7 @@ int drop_fs(char * table_name) {
 
 void dump_thread() {
 	while(1) {
-		sleep(config.dump_delay / 1000);
+		usleep(config.dump_delay * 1000);
 		dump_memtable();
 	}
 }
@@ -1267,7 +1267,7 @@ void compact(char * table_name) {
 
 void compact_thread(MemtableTableReg * table) {
 	while(table != null) {
-		sleep(table->compaction_time / 1000);
+		usleep(table->compaction_time * 1000);
 		compact(table->table_name);
 	}
 }

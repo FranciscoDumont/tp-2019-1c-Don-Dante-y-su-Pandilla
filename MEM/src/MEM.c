@@ -204,7 +204,7 @@ void journal_start(pthread_t * journal_thread){
 void journal_routine(){
 	while(1) {
 
-		sleep(config.journal_time / 1000);
+		usleep(config.journal_time * 1000);
 
 		log_info(logger, "Se inicia el JOURNAL por tiempo");
 		journal();
@@ -1030,7 +1030,7 @@ void gossiping_thread() {
 		}
 		inform_gossiping_pool();
 
-		sleep(config.gossiping_time / 1000);
+		usleep(config.gossiping_time * 1000);
 	}
 }
 void gossiping_start(pthread_t * thread) {

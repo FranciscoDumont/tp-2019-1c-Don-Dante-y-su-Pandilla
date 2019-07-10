@@ -173,7 +173,7 @@ void running(int n) {
 		} else {
 			//log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
 		}
-		sleep(config.exec_delay/1000);
+		usleep(config.exec_delay * 1000);
 	}
 }
 
@@ -352,7 +352,7 @@ void metadata_refresh_loop() {
 	inform_thread_id("metadata_refresh");
 	while(1) {
 		refresh_metadata(false);
-		sleep(config.metadata_refresh / 1000);
+		usleep(config.metadata_refresh * 1000);
 	}
 }
 
@@ -428,7 +428,7 @@ void gossiping_thread() {
 
 		//inform_gossiping_pool();
 
-		sleep(config.metadata_refresh / 1000);
+		usleep(config.metadata_refresh * 1000);
 	}
 }
 void gossiping_start(pthread_t * thread) {
