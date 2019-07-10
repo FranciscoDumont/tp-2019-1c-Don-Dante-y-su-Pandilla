@@ -42,7 +42,7 @@ void journal_routine();
 
 
 void tests_memoria();
-void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado);
+void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado, unsigned long timestamp_modificado);
 void crear_segmento(char* nombre_tabla);
 segmento_t* find_segmento(char* segmento_buscado);
 pagina_t* find_pagina_en_segmento(int key_buscado,segmento_t* segmento_buscado);
@@ -50,7 +50,7 @@ void set_pagina_timestamp(pagina_t* una_pagina,unsigned long un_timestamp);
 void set_pagina_key(pagina_t* una_pagina,int un_key);
 void set_pagina_value(pagina_t* una_pagina,char* un_value);
 int obtener_tamanio_pagina();
-void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp);
+void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp, unsigned long timestamp_modificado);
 void sacar_lru();
 int hay_paginas_disponibles();
 int memoria_esta_full();
@@ -224,7 +224,8 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		segmento_t* segmento_por_insertar = find_segmento(nombre_tabla);
 		if (existe_pagina_en_segmento(key,segmento_por_insertar)){
 			log_info(logger, "La pagina ya existia, se va a actualizar");
-			actualizar_pagina(nombre_tabla,key,valor,timestamp);
+			unsigned long timestamp_modificado = unix_epoch();
+			actualizar_pagina(nombre_tabla,key,valor,timestamp, timestamp_modificado);
 		} else{
 			log_info(logger, "La pagina no existia");
 		//En caso que no contenga la Key, se solicita una nueva página para almacenar la misma.
@@ -232,7 +233,8 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		//y en caso de que la memoria se encuentre full iniciar el proceso Journal.
 			if (hay_paginas_disponibles()){
 				log_info(logger, "Hay paginas disponibles, se crea la pagina");
-				crear_pagina(nombre_tabla,key,valor,timestamp,1);
+				unsigned long timestamp_modificado = unix_epoch();
+				crear_pagina(nombre_tabla,key,valor,timestamp,1, timestamp_modificado);
 			}else{
 				log_info(logger, "No hay paginas disponibles:");
 				//todas las paginas estan llenas con o sin modificar
@@ -247,7 +249,8 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 					//algoritmo de reemplazo
 					log_info(logger, "\tHay paginas con el flag en 0, se hace lru");
 					sacar_lru();
-					crear_pagina(nombre_tabla,key,valor,timestamp,1);
+					unsigned long timestamp_modificado;
+					crear_pagina(nombre_tabla,key,valor,timestamp,1,timestamp_modificado);
 				}
 			}
 
@@ -347,7 +350,8 @@ char * select_mem(char * table_name, int key){
 				if (hay_paginas_disponibles()){
 					log_info(logger, "Hay páginas disponibles, la página se creará");
 					unsigned long timestamp = unix_epoch();
-					crear_pagina(table_name,key,value,timestamp,1);//valorkey?
+					unsigned long timestamp_modificado = unix_epoch();
+					crear_pagina(table_name,key,value,timestamp,1, timestamp_modificado);//valorkey?
 					pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
 					log_info(logger, "Se devuelve el valor de la pagina");
 					char* value = get_pagina_value(key_buscada);
@@ -364,7 +368,8 @@ char * select_mem(char * table_name, int key){
 						//ejecutamos el algoritmo de reemplazo
 						log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
 						sacar_lru();
-						//		crear_pagina(table_name,key,valor_key,timestamp,1);
+						unsigned long timestamp_modificado = unix_epoch();
+						crear_pagina(table_name,key,valor_key,timestamp,1, timestamp_modificado);
 					}
 				}
 			} else {
@@ -678,14 +683,16 @@ void show_list(InstructionList list){
 */
 
 //busca la pagina con el nomre y key y actualiza el valor
-void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp){
+void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp, unsigned long timestamp_modificado){
 	segmento_t* segmento_encontrado = find_segmento(nombre_tabla);
 	pagina_t* pagina_encontrada = find_pagina_en_segmento(key,segmento_encontrado);
+
 
 	if(pagina_encontrada){
 		set_pagina_timestamp(pagina_encontrada,timestamp);
 		set_pagina_key(pagina_encontrada,key);
 		set_pagina_value(pagina_encontrada,valor);
+		set_pagina_timestamp_modificado(pagina_encontrada, timestamp_modificado)
 	} else {
 		log_info(logger, "NO SE ENCONTRO LA PAGINA %d en la tabla %s => NO SE PUDO COMPLETA LA OPERACION",key,nombre_tabla);
 	} 
@@ -706,7 +713,7 @@ void get_memoria_libre(pagina_t* una_pagina){
 	una_pagina->nro_pagina = i;
 }
 
-void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado){
+void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado, unsigned long timestamp_modificado){
 	//creo la pagina en mi estructura de paginas
 	pagina_t* nueva_pagina = malloc(sizeof(pagina_t));
 	nueva_pagina->flag_modificado = un_flag_modificado;
@@ -717,6 +724,7 @@ void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp
 	set_pagina_key(nueva_pagina,key);
 	set_pagina_value(nueva_pagina,valor);
 	set_pagina_timestamp(nueva_pagina,timestamp);
+	set_pagina_timestamp_modificado(nueva_pagina,timestamp_modificado);
 
 	//se lo asigno al segmento que corresponde
 	segmento_t* segmento_encontrado = find_segmento(nombre_tabla);
