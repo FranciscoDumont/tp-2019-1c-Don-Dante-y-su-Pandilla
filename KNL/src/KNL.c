@@ -8,6 +8,7 @@ KNLConfig config;
 t_list * gossiping_list;
 
 t_list * tables_dict;
+pthread_mutex_t tables_mutex;
 
 unsigned int lql_max_id;
 pthread_mutex_t ready_queue_mutex;
@@ -52,6 +53,7 @@ int main(int argc, char **argv) {
 	} else {
 		config_file = config_create(argv[1]);
 	}
+	inform_thread_id("main");
 	int qa;
 
 	gossiping_list = list_create();
@@ -79,6 +81,7 @@ int main(int argc, char **argv) {
 
 	init_normal_mutex(&ready_queue_mutex, "READY_QUEUE");
 	init_normal_mutex(&criterions_mutex, "CRITERIONS");
+	init_normal_mutex(&tables_mutex, "TABLES_MUTEX");
 
 	config.a_memory_ip = config_get_string_value(config_file, "IP_MEMORIA");
 	config.a_memory_port = config_get_int_value(config_file, "PUERTO_MEMORIA");
@@ -124,6 +127,7 @@ int main(int argc, char **argv) {
 }
 
 void running(int n) {
+	inform_thread_id("running");
 	LQLScript * this_core_lql = null;
 	while(1) {
 		if(this_core_lql == null) {
@@ -136,15 +140,15 @@ void running(int n) {
 		}
 		if(this_core_lql != null) {
 			this_core_lql->state = EXEC;
-			//log_info(logger, "RUNNING THREAD %d - LQL %d\n", n, this_core_lql->lqlid);
+			custom_print("RUNNING THREAD %d - LQL %d %d\n", n, this_core_lql->lqlid);
 			if(exec_lql_line(this_core_lql)) {
 				this_core_lql->quantum_counter++;
 				if(feof(this_core_lql->file)) {
 					//EXIT X FEOF
 					this_core_lql->state = EXIT;
 					list_add(exit_queue, this_core_lql);
+					custom_print("  %d EXIT X FEOF\n", this_core_lql->lqlid);
 					this_core_lql = null;
-					custom_print("  EXIT X FEOF\n");
 				} else {
 					if(this_core_lql->quantum_counter == config.quantum) {
 						//EXIT X QUANTUM
@@ -153,19 +157,18 @@ void running(int n) {
 							list_add(ready_queue, this_core_lql);
 						unlock_mutex(&ready_queue_mutex);
 						this_core_lql->quantum_counter = 0;
-						this_core_lql = null;
 						custom_print("  EXIT X QUANTUM\n");
+						this_core_lql = null;
 					} else {
 						//CONTINUE
-						custom_print("  CONTINUES\n");
 					}
 				}
 			} else {
 				//ERROR
 				this_core_lql->state = EXIT;
 				list_add(exit_queue, this_core_lql);
+				custom_print("  %d EXIT X ERROR\n", this_core_lql->lqlid);
 				this_core_lql = null;
-				custom_print("  EXIT X ERROR\n");
 			}
 		} else {
 			//log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
@@ -203,6 +206,7 @@ void run_knl(char * filepath) {
 	LQLScript * lql = malloc(sizeof(LQLScript));
 	lql->state = NEW;
 	lql->lqlid = lql_max_id++;
+	lql->lql_name = filepath;
 	list_add(new_queue, lql);
 
 	create_lql(lql, filepath);
@@ -239,29 +243,34 @@ void print_op_debug(Instruction * i) {
 _Bool exec_lql_line(LQLScript * lql) {
 	Instruction * i = parse_lql_line(lql);
 
+	_Bool op_return = false;
+	if(i->i_type == UNKNOWN_OP_TYPE)
+		return false;
 	print_op_debug(i);
 
 	lock_mutex(&criterions_mutex);
 	switch(i->i_type) {
 		case CREATE:
-			create_knl(i->table_name, i->c_type, i->partitions, i->compaction_time);
+			op_return = create_knl(i->table_name, i->c_type, i->partitions, i->compaction_time);
 			break;
 		case SELECT:
-			select_knl(i->table_name, i->key);
+			op_return = select_knl(i->table_name, i->key);
 			break;
 		case INSERT:
-			insert_knl(i->table_name, i->key, i->value, i->timestamp);
+			op_return = insert_knl(i->table_name, i->key, i->value, i->timestamp);
 			break;
 		case DESCRIBE:
-			refresh_metadata(true);
+			//refresh_metadata(true);
+			custom_print("mockup de describe\n");
+			op_return = true;
 			break;
 		case DROP:
-			drop_knl(i->table_name);
+			op_return = drop_knl(i->table_name);
 			break;
 	}
 	unlock_mutex(&criterions_mutex);
 
-	return true;
+	return op_return;
 }
 
 void journal_to_memories_list(t_list * memories) {
@@ -310,7 +319,11 @@ void refresh_metadata(_Bool print_x_screen) {
 		memsocket = -1;
 	}
 	if(memsocket != -1) {
+		lock_mutex(&tables_mutex);
 		list_clean(tables_dict);
+		list_destroy(tables_dict);
+		tables_dict = list_create();
+		custom_print("Sending describe to memory");
 		send_data(memsocket, KNL_MEM_DESCRIBE_METADATA, 0, null);
 		int f, a;
 		recv(memsocket, &f, sizeof(int), 0);
@@ -323,16 +336,20 @@ void refresh_metadata(_Bool print_x_screen) {
 			table->table_name = malloc(table_n_l * sizeof(char));
 			recv(memsocket, table->table_name, table_n_l * sizeof(char), 0);
 
-			if(print_x_screen)
-				//log_info(logger, "ASDASD %s %d", table->table_name, table->consistency);
+			if(print_x_screen) {
+				custom_print("   %s %d", table->table_name, table->consistency);
+			}
 
 			//TABLE
 			list_add(tables_dict, table);
 		}
+		unlock_mutex(&tables_mutex);
+		close(memsocket);
 	}
 }
 
 void metadata_refresh_loop() {
+	inform_thread_id("metadata_refresh");
 	while(1) {
 		refresh_metadata(false);
 		sleep(config.metadata_refresh / 1000);
@@ -400,14 +417,14 @@ void gossiping_thread() {
 				//log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
 
 				add_to_pool(this_mem);
+
+				close(memsocket);
 			}
 
 			if(tables_dict->elements_count == 0) {
 				refresh_metadata(false);
 			}
 		}
-
-		close(memsocket);
 
 		//inform_gossiping_pool();
 
@@ -551,10 +568,16 @@ void execute_knl(comando_t* unComando){
 }
 
 MemtableTableReg * find_table(char * name) {
+	lock_mutex(&tables_mutex);
+	//custom_print("\n\nBST\n");
 	_Bool is_selected(MemtableTableReg * t) {
-		return strcmp(t->table_name, name) == 0;
+		//custom_print("  %s vs %s\n", t->table_name, name);
+		return strcasecmp(t->table_name, name) == 0;
 	}
-	return list_find(tables_dict, is_selected);
+	MemtableTableReg * r = list_find(tables_dict, is_selected);
+	//custom_print("EST\n\n");
+	unlock_mutex(&tables_mutex);
+	return r;
 }
 
 MemPoolData * select_memory_by_table(MemtableTableReg * table, int key) {
@@ -603,16 +626,24 @@ MemPoolData * select_memory_by_consistency(ConsistencyTypes type, int key) {
 
 //API
 _Bool insert_knl(char * table_name, int key, char * value, unsigned long timestamp){
+	int a;
+	for(a=0 ; a<strlen(table_name) ; a++) {
+		if(table_name[a] == ' ') {
+			table_name[a] = '\0';
+		}
+	}
 	MemtableTableReg * tReg = find_table(table_name);
+
 	if(tReg == null) {
+		custom_print("Falla insert x tabla [%s]", table_name);
 		//log_info(logger, "Tabla no existe");
 		return false;
 	}
 
-	MemPoolData * selected_memory = select_memory_by_table(tReg, key);
-	if(selected_memory == null) {
+	MemPoolData * selected_memory = null;
+	while(selected_memory == null) {
+		selected_memory = select_memory_by_table(tReg, -1);
 		//log_error(logger, "No available memory for table");
-		return false;
 	}
 
 	int memsocket;
@@ -647,17 +678,21 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
 			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
-			return true;
+			exit_value = true;
 		} else {
 			//log_info(logger, "INSERT ERROR");
-			return false;
+			exit_value = false;
 		}
+
+		close(memsocket);
 
 		unsigned long op_end = unix_epoch();
 		unsigned long op_length = op_end - op_start;
 		ConsistencyCriterion * criterion = getCriterionPointer(tReg);
 		criterion->write_acum_count++;
 		criterion->write_acum_times += op_length;
+
+		return exit_value;
 	}
 
 	return false;
@@ -746,6 +781,8 @@ void perform_metrics() {
 			recv(memsocket, &ro, sizeof(int), 0);
 			recv(memsocket, &wo, sizeof(int), 0);
 
+			close(memsocket);
+
 			log_info(metrics_logger, "MEM[%d] Memory Load = %f",
 							memory->memory_id, ((ro+wo) / to));
 		}
@@ -806,19 +843,25 @@ _Bool select_knl(char * table_name, int key){
 			recv(memsocket, &result_len, sizeof(int), 0);
 			char* value = malloc(sizeof(char) * result_len);
 			recv(memsocket, value, result_len * sizeof(char), 0);
+
+			custom_print("   El valor es %s", value);
 			//log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
-			exit_value = EXIT_SUCCESS;
-			return true;
+			exit_value = true;
 		} else {
 			//log_info(logger, "SELECT ERROR");
-			return false;
+			custom_print("   El valor es desconocido");
+			exit_value = true;
 		}
+
+		close(memsocket);
 
 		unsigned long op_end = unix_epoch();
 		unsigned long op_length = op_end - op_start;
 		ConsistencyCriterion * criterion = getCriterionPointer(tReg);
 		criterion->read_acum_count++;
 		criterion->read_acum_times += op_length;
+
+		return exit_value;
 	}
 	return false;
 }
@@ -830,10 +873,10 @@ _Bool drop_knl(char * table_name){
 		return false;
 	}
 
-	MemPoolData * selected_memory = select_memory_by_table(tReg, -1);
-	if(selected_memory == null) {
+	MemPoolData * selected_memory = null;
+	while(selected_memory == null) {
+		selected_memory = select_memory_by_table(tReg, -1);
 		//log_error(logger, "No available memory for table");
-		return false;
 	}
 
 	int memsocket;
@@ -860,13 +903,12 @@ _Bool drop_knl(char * table_name){
 		if(header->type == OPERATION_SUCCESS) {
 			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
 			//log_info(logger, "DROP EN EL FILESYSTEM");
-			exit_value = EXIT_SUCCESS;
-			return true;
+			exit_value = true;
 		} else {
 			//log_info(logger, "DROP ERROR");
-			exit_value = EXIT_FAILURE;
-			return false;
+			exit_value = false;
 		}
+		close(memsocket);
 
 		return exit_value;
 	}
@@ -917,11 +959,13 @@ _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
 			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
-			exit_value = EXIT_SUCCESS;
+			exit_value = true;
 		} else {
 			//log_info(logger, "CREATE ERROR");
-			exit_value = EXIT_FAILURE;
+			exit_value = false;
 		}
+		close(memsocket);
+		return exit_value;
 	}
 	return false;
 }

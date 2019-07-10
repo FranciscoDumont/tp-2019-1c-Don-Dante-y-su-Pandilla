@@ -39,6 +39,7 @@ typedef enum _MessageType {
 
 	MEM_LFS_SELECT,
 	SELECT_FAILED_NO_TABLE_SUCH_FOUND,
+	SELECT_FAILED_NO_RESULT,
 
 	MEM_LFS_INSERT,
 
@@ -167,7 +168,9 @@ typedef enum _InstructionType{
 	CREATE,
 	DESCRIBE,
 	DROP,
-	JOURNAL
+	JOURNAL,
+
+	UNKNOWN_OP_TYPE
 }InstructionType;
 
 typedef struct _Instruction {
@@ -213,6 +216,7 @@ typedef struct _lql {
 	size_t len;
 	ssize_t read;
 	LQLState state;
+	char * lql_name;
 	int quantum_counter;
 	unsigned int lqlid;
 } LQLScript;

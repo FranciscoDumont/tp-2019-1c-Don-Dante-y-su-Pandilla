@@ -87,12 +87,13 @@ void mostrarPaginas();
 
 
 int main(int argc, char **argv) {
-
 	if (argc != 2) {
-		config_file = config_create("mem01.cfg");
+		config_file = config_create("mem03.cfg");
 	} else {
 		config_file = config_create(argv[1]);
 	}
+
+	MUTEX_DEBUG_LEVEL = MX_ALL_DISPLAY;
 
 	gossiping_list = list_create();
 
@@ -176,9 +177,6 @@ int main(int argc, char **argv) {
 
 	instruction_list = list_create();
 
-	//cuidado aca ndeaaa skereeeeeeee
-	//tests_memoria();
-
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
 	
@@ -217,7 +215,7 @@ void journal_routine(){
 
 //TODO: Manejar el tema de timestamp desde la funcion que llama a esta
 int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp) {
-	log_info(logger, "Inicio insert(%s,%d,%s,%lu)",nombre_tabla,key,valor,timestamp);
+	custom_print("Inicio insert(%s,%d,%s,%lu)",nombre_tabla,key,valor,timestamp);
 	//Verifica si existe el segmento de la tabla en la memoria principal
 	if(existe_segmento(nombre_tabla)){
 		log_info(logger, "Ya existe el segmento %s",nombre_tabla);
@@ -297,7 +295,7 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 
 
 char * select_mem(char * table_name, int key){
-	log_info(logger, "Inicio select %s, %d", table_name, key);
+	custom_print("Inicio select %s, %d", table_name, key);
 	total_operations++;
 	read_operations++;
 
@@ -403,7 +401,7 @@ char * select_mem(char * table_name, int key){
 			exit_value = EXIT_SUCCESS;
 		
 	}
-
+	}
 
 }
 
@@ -501,7 +499,7 @@ int journal(){
 
 		//Solo se journalea el insert
 
-		log_info(logger, "Se inicia el JOURNAL");
+		custom_print("Se inicia el JOURNAL");
 		int elements_count = list_size(instruction_list);
 		log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
 		Instruction * i;
@@ -1050,11 +1048,11 @@ int server_function() {
 					log_info(logger, "%s", select_result);
 
 					if(select_result == null) {
-						custom_print("Select Fallo %s %d\n", table_name, key_select);
-						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+						custom_print("Select Fallo %s %d por null\n", table_name, key_select);
+						send_data(fd, SELECT_FAILED_NO_RESULT, 0, null);
 					} else if(strcmp(select_result, "UNKNOWN") == 0) {
-						custom_print("Select Fallo %s %d\n", table_name, key_select);
-						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
+						custom_print("Select Fallo %s %d por unknown\n", table_name, key_select);
+						send_data(fd, SELECT_FAILED_NO_RESULT, 0, null);
 					}else{
 						custom_print("Select %s %d = %s\n", table_name, key_select, select_result);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
@@ -1131,6 +1129,7 @@ int server_function() {
 			case KNL_MEM_DESCRIBE_METADATA:
 				;
 
+				custom_print("Recv de describe");
 				t_list * describe_result = describe_mem("");
 				int q = describe_result->elements_count, rec;
 				send(fd, &q, sizeof(int), 0);
@@ -1211,7 +1210,8 @@ void execute_mem(comando_t* unComando){
 			add_instruction(i);
 			*/
 
-			select_mem(parametro1,atoi(parametro2));
+			char * v = select_mem(parametro1, atoi(parametro2));
+			custom_print("   El valor es %s", v);
 		}
 
 	//INSERT

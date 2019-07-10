@@ -42,6 +42,8 @@ void execute_lfs(comando_t* unComando);
 void info();
 void consola_lfs();
 
+void compact_thread(MemtableTableReg * table);
+void dump_thread();
 int lfs_server();
 
 int main(int argc, char **argv) {
@@ -62,11 +64,12 @@ int main(int argc, char **argv) {
 	memtable = list_create();
 
 	up_filesystem();
-	create_fs("A", STRONG_CONSISTENCY, 1, 2);
-	insert_fs("A",3,"valor",unix_epoch());
 
 	pthread_t lfs_server_thread;
 	pthread_create(&lfs_server_thread, NULL, lfs_server, NULL);
+
+	pthread_t lfs_dump_thread;
+	pthread_create(&lfs_dump_thread, NULL, dump_thread, NULL);
 
 	//Consola
 
@@ -74,6 +77,7 @@ int main(int argc, char **argv) {
 	pthread_create(&lfs_console_id, NULL, consola_lfs, NULL);
 
 	pthread_detach(lfs_server_thread);
+	pthread_join(lfs_dump_thread, NULL);
 	pthread_join(lfs_console_id, NULL);
 
 	return EXIT_SUCCESS;
@@ -362,6 +366,10 @@ void up_filesystem() {
 					inform_table_metadata(reg);
 					list_add(memtable, reg);
 
+					pthread_t compaction_thread;
+					pthread_create(&compaction_thread, NULL, compact_thread, reg);
+					pthread_detach(compaction_thread);
+
 					config_destroy(config);
 				}
 			}
@@ -425,6 +433,9 @@ void dump_bitmap() {
 
 LFSFileStruct * save_file_contents(char * content, char * file_path) {
 	LFSFileStruct * file_struct = malloc(sizeof(LFSFileStruct));
+
+	//custom_print("\nSaving to  %s  \n", file_path);
+	//custom_print("%s\n\n", content);
 
 	float content_size	= strlen(content) + 0.0;
 	float blocks_q_f	= content_size / fsconfig.block_size;
@@ -708,6 +719,10 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 	table_reg->records			= null;
 	table_reg->dumping_queue	= list_create();
 	table_reg->temp_c			= list_create();
+
+	pthread_t compaction_thread;
+	pthread_create(&compaction_thread, NULL, compact_thread, table_reg);
+	pthread_detach(compaction_thread);
 
 	list_add(memtable, table_reg);
 
@@ -1018,7 +1033,15 @@ int drop_fs(char * table_name) {
 	return true;
 }
 
+void dump_thread() {
+	while(1) {
+		sleep(config.dump_delay / 1000);
+		dump_memtable();
+	}
+}
+
 void dump_memtable() {
+	custom_print("Dump Started");
 	int aux_iterator, records_iterator, multiplier_iterator, counter;
 
 	for(aux_iterator=0 ; aux_iterator<memtable->elements_count ; aux_iterator++) {
@@ -1079,6 +1102,7 @@ void dump_memtable() {
 		free(temp_content);
 		free(pfilepath);
 	}
+	custom_print("Dump Finished");
 }
 
 void compact(char * table_name) {
@@ -1091,7 +1115,7 @@ void compact(char * table_name) {
 	}
 
 	if(table->dumping_queue->elements_count == 0) {
-		log_info(logger, "Table %s has no temp files to compact", table_name);
+		log_info(logger, "Table %s has no temp files to compact %d", table_name, table->compaction_time);
 		return;
 	}
 
@@ -1122,6 +1146,9 @@ void compact(char * table_name) {
 		char * file_content		= get_file_contents(temp_file_path);
 		char * buffer_temp		= malloc(strlen(file_content) * sizeof(char));
 
+		custom_print("\nTFILE %d\n\n%s\n\n", (*file_number), file_content);
+
+		int f_tr;
 		char * token;
 		for (token = strtok_r(file_content, "\n", &buffer_temp) ;
 					token != NULL ;
@@ -1129,6 +1156,8 @@ void compact(char * table_name) {
 			int t_key;
 			char * value = malloc(config.value_size);
 			unsigned long timestamp;
+
+			f_tr = 0;
 
 			sscanf(token, "%lu;%d;%s", &timestamp, &t_key, value);
 
@@ -1175,6 +1204,7 @@ void compact(char * table_name) {
 				reg_p->value			= value_p;
 
 				if(reg->key == reg_p->key) {
+					f_tr = 1;
 					if(reg->timestamp > reg_p->timestamp) {
 						if(counter_partition != 0) {
 							strcat(new_partition_content, "\n");
@@ -1203,7 +1233,10 @@ void compact(char * table_name) {
 				}
 			}
 
-			if(counter_partition == 0) {
+			if(f_tr == 0 && counter_partition != 0) {
+				strcat(new_partition_content, "\n");
+			}
+			if(counter_partition == 0 | f_tr == 0) {
 				//Empty partition file
 				char * this_line = malloc(3 + config.value_size + 10);
 				sprintf(this_line, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
@@ -1230,6 +1263,13 @@ void compact(char * table_name) {
 	list_clean(table->temp_c);
 
 	log_info(logger, "Compacted table %s", table_name);
+}
+
+void compact_thread(MemtableTableReg * table) {
+	while(table != null) {
+		sleep(table->compaction_time / 1000);
+		compact(table->table_name);
+	}
 }
 
 
@@ -1309,6 +1349,8 @@ void execute_lfs(comando_t* unComando){
 	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		info();
+	}else if (strcmp(comandoPrincipal,"readfile")==0){
+		custom_print("\nSTART\n%s\nEND\n", get_file_contents(parametro1));
 	}
 
 }

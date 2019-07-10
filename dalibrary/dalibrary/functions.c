@@ -547,8 +547,19 @@ void create_lql(LQLScript * script, char * filepath) {
 	script->quantum_counter = 0;
 }
 
+_Bool string_is_number(char * str) {
+	int a;
+	for(a=0 ; a<strlen(str) ; a++) {
+		if(!isdigit(str[a])) {
+			return false;
+		}
+	}
+	return true;
+}
+
 Instruction * parse_lql_line(LQLScript * script) {
 	Instruction * i = null; int a, t;
+	char * auxLine = null;
 
 	if ((script->read = getline(&script->line, &script->len, script->file)) != -1) {
 
@@ -560,7 +571,7 @@ Instruction * parse_lql_line(LQLScript * script) {
 		}
 
 		t = strlen(line);
-		char * auxLine = malloc((t + 1) * sizeof(char));
+		auxLine = malloc((t + 1) * sizeof(char));
 		for(a=0 ; a<t ; a++) {
 			auxLine[a] = line[a];
 		}
@@ -583,6 +594,7 @@ Instruction * parse_lql_line(LQLScript * script) {
 		}
 
 		i = malloc(sizeof(Instruction));
+		i->i_type = UNKNOWN_OP_TYPE;
 
 		if(strcmp(split[0], "SELECT") == 0) {
 			i->i_type = SELECT;
@@ -594,7 +606,12 @@ Instruction * parse_lql_line(LQLScript * script) {
 			i->i_type = INSERT;
 			i->table_name = split[1];
 
-			i->key = atoi(split[2]);
+			if(string_is_number(split[2])) {
+				i->key = atoi(split[2]);
+			} else {
+				i->i_type = UNKNOWN_OP_TYPE;
+			}
+
 			i->value = split[3];
 			i->value = i->value+1;
 			i->value[strlen(i->value)-1] = '\0';
@@ -634,6 +651,11 @@ Instruction * parse_lql_line(LQLScript * script) {
 		custom_print("ERROR");
 		return null;
 	}
+
+	if(i->i_type == UNKNOWN_OP_TYPE) {
+		custom_print("Error al Parsear %s", auxLine);
+	}
+
 	return i;
 }
 
