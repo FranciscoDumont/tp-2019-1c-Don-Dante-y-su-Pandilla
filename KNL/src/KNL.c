@@ -10,6 +10,8 @@ t_list * gossiping_list;
 t_list * tables_dict;
 pthread_mutex_t tables_mutex;
 
+int max_multiprocessing_grade;
+
 unsigned int lql_max_id;
 pthread_mutex_t ready_queue_mutex;
 
@@ -58,16 +60,17 @@ int main(int argc, char **argv) {
 	inform_thread_id("main");
 	int qa;
 
-	_read_config();
-	pthread_t config_notify_thread;
-	pthread_create(&config_notify_thread, NULL, notify_config_thread, NULL);
-	pthread_detach(config_notify_thread);
-
 	gossiping_list = list_create();
 	new_queue = list_create();
 	ready_queue = list_create();
 	exit_queue = list_create();
 	exec_threads = list_create();
+
+	max_multiprocessing_grade = 0;
+	_read_config();
+	pthread_t config_notify_thread;
+	pthread_create(&config_notify_thread, NULL, notify_config_thread, NULL);
+	pthread_detach(config_notify_thread);
 
 	CriterionEventual.type = EVENTUAL_CONSISTENCY;
 	CriterionEventual.memories = list_create();
@@ -90,17 +93,11 @@ int main(int argc, char **argv) {
 	init_normal_mutex(&criterions_mutex, "CRITERIONS");
 	init_normal_mutex(&tables_mutex, "TABLES_MUTEX");
 
-	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
+	logger = log_create("kernel_logger.log", "KNL", false, LOG_LEVEL_TRACE);
 	metrics_logger = log_create("metrics_logger.log", "KNL", false, LOG_LEVEL_TRACE);
 
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
-
-	for(qa = 0 ; qa < config.multiprocessing_grade ; qa++) {
-		pthread_t thread_r;
-		pthread_create(&thread_r, NULL, running, qa);
-		list_add(exec_threads, &thread_r);
-	}
 
 	restart_criterion_stats();
 
@@ -157,63 +154,80 @@ void read_config(struct inotify_event *i) {
 	}
 }
 void _read_config() {
+	int nmpp, qa;
 	config_file = config_create(config_path);
 
 	config.a_memory_ip = config_get_string_value(config_file, "IP_MEMORIA");
 	config.a_memory_port = config_get_int_value(config_file, "PUERTO_MEMORIA");
 	config.quantum = config_get_int_value(config_file, "QUANTUM");
-	config.multiprocessing_grade = config_get_int_value(config_file, "MULTIPROCESAMIENTO");
+	nmpp = config_get_int_value(config_file, "MULTIPROCESAMIENTO");
+
+	if(nmpp > max_multiprocessing_grade) {
+		int qa  = max_multiprocessing_grade;
+
+		for(qa; qa < nmpp ; qa++) {
+			pthread_t thread_r;
+			pthread_create(&thread_r, NULL, running, qa);
+			list_add(exec_threads, &thread_r);
+		}
+
+		max_multiprocessing_grade = nmpp;
+	}
+
+	config.multiprocessing_grade = nmpp;
 	config.metadata_refresh = config_get_int_value(config_file, "METADATA_REFRESH");
 	config.exec_delay = config_get_int_value(config_file, "SLEEP_EJECUCION");
-	config.current_multiprocessing = 0;
 }
 
 void running(int n) {
+	custom_print("Launched rthred %d", n);
 	inform_thread_id("running");
 	LQLScript * this_core_lql = null;
 	while(1) {
-		if(this_core_lql == null) {
-			lock_mutex(&ready_queue_mutex);
-			if(ready_queue->elements_count != 0) {
-				this_core_lql = list_get(ready_queue, 0);
-				list_remove(ready_queue, 0);
+		if(n < config.multiprocessing_grade) {
+			if(this_core_lql == null) {
+				lock_mutex(&ready_queue_mutex);
+				if(ready_queue->elements_count != 0) {
+					this_core_lql = list_get(ready_queue, 0);
+					list_remove(ready_queue, 0);
+				}
+				unlock_mutex(&ready_queue_mutex);
 			}
-			unlock_mutex(&ready_queue_mutex);
-		}
-		if(this_core_lql != null) {
-			this_core_lql->state = EXEC;
-			custom_print("RUNNING THREAD %d - LQL %d %d\n", n, this_core_lql->lqlid);
-			if(exec_lql_line(this_core_lql)) {
-				this_core_lql->quantum_counter++;
-				if(feof(this_core_lql->file)) {
-					//EXIT X FEOF
-					this_core_lql->state = EXIT;
-					list_add(exit_queue, this_core_lql);
-					custom_print("  %d EXIT X FEOF\n", this_core_lql->lqlid);
-					this_core_lql = null;
-				} else {
-					if(this_core_lql->quantum_counter == config.quantum) {
-						//EXIT X QUANTUM
-						lock_mutex(&ready_queue_mutex);
-							this_core_lql->state = READY;
-							list_add(ready_queue, this_core_lql);
-						unlock_mutex(&ready_queue_mutex);
-						this_core_lql->quantum_counter = 0;
-						custom_print("  EXIT X QUANTUM\n");
+			if(this_core_lql != null) {
+				this_core_lql->state = EXEC;
+				custom_print("RUNNING THREAD %d - LQL %d (x%d) %s\n", n, this_core_lql->lqlid, this_core_lql->instruction_counter, this_core_lql->lql_name);
+				if(exec_lql_line(this_core_lql)) {
+					this_core_lql->quantum_counter++;
+					if(feof(this_core_lql->file)) {
+						//EXIT X FEOF
+						this_core_lql->state = EXIT;
+						list_add(exit_queue, this_core_lql);
+						custom_print("  %d EXIT X FEOF\n", this_core_lql->lqlid);
 						this_core_lql = null;
 					} else {
-						//CONTINUE
+						if(this_core_lql->quantum_counter == config.quantum) {
+							//EXIT X QUANTUM
+							lock_mutex(&ready_queue_mutex);
+								this_core_lql->state = READY;
+								list_add(ready_queue, this_core_lql);
+							unlock_mutex(&ready_queue_mutex);
+							this_core_lql->quantum_counter = 0;
+							custom_print("  EXIT X QUANTUM\n");
+							this_core_lql = null;
+						} else {
+							//CONTINUE
+						}
 					}
+				} else {
+					//ERROR
+					this_core_lql->state = EXIT;
+					list_add(exit_queue, this_core_lql);
+					custom_print("  %d EXIT X ERROR\n", this_core_lql->lqlid);
+					this_core_lql = null;
 				}
 			} else {
-				//ERROR
-				this_core_lql->state = EXIT;
-				list_add(exit_queue, this_core_lql);
-				custom_print("  %d EXIT X ERROR\n", this_core_lql->lqlid);
-				this_core_lql = null;
+				//log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
 			}
-		} else {
-			//log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
 		}
 		usleep(config.exec_delay * 1000);
 	}
@@ -248,7 +262,8 @@ void run_knl(char * filepath) {
 	LQLScript * lql = malloc(sizeof(LQLScript));
 	lql->state = NEW;
 	lql->lqlid = lql_max_id++;
-	lql->lql_name = filepath;
+	lql->lql_name = strdup(filepath);
+	lql->instruction_counter = 0;
 	list_add(new_queue, lql);
 
 	create_lql(lql, filepath);
@@ -284,6 +299,7 @@ void print_op_debug(Instruction * i) {
 
 _Bool exec_lql_line(LQLScript * lql) {
 	Instruction * i = parse_lql_line(lql);
+	lql->instruction_counter++;
 
 	_Bool op_return = false;
 	if(i->i_type == UNKNOWN_OP_TYPE)
@@ -318,7 +334,8 @@ _Bool exec_lql_line(LQLScript * lql) {
 void journal_to_memories_list(t_list * memories) {
 	int i, memsocket;
 	for(i=0 ; i<memories->elements_count ; i++) {
-		MemPoolData * m = list_get(memories, i);
+		int * did = list_get(memories, i);
+		MemPoolData * m = getMemoryData(*did);
 		if ((memsocket = create_socket()) == -1) {
 			memsocket = -1;
 		}
@@ -421,23 +438,28 @@ void add_to_pool(MemPoolData * mem) {
 			return;
 		}
 	}
+	log_info(logger, "      adding %d %s %d", mem->memory_id, mem->ip, mem->port);
 	list_add(gossiping_list, mem);
 }
 void gossiping_thread() {
 	while(1) {
+		int a;
 		list_clean(gossiping_list);
+		log_info(logger, "GOS");
 
-		//Contact known seed
+		char * ip = config.a_memory_ip;
+		int  port = config.a_memory_port;
 		int memsocket;
+
 		MemPoolData * this_seed = malloc(sizeof(MemPoolData));
 		this_seed->ip = malloc(sizeof(char) * IP_LENGTH);
-		this_seed->port = config.a_memory_port;
-		strcpy(this_seed->ip, config.a_memory_ip);
+		this_seed->port = port;
+		strcpy(this_seed->ip, ip);
 
 		if ((memsocket = create_socket()) == -1) {
 			memsocket = -1;
 		}
-		if (memsocket != -1 && (connect_socket(memsocket, this_seed->ip, this_seed->port)) == -1) {
+		if (memsocket != -1 && (connect_socket(memsocket, ip, port)) == -1) {
 			memsocket = -1;
 		}
 
@@ -462,14 +484,10 @@ void gossiping_thread() {
 				//log_info(logger, "   gave me %d in %s %d", this_mem->memory_id, this_mem->ip, this_mem->port);
 
 				add_to_pool(this_mem);
-
-				close(memsocket);
-			}
-
-			if(tables_dict->elements_count == 0) {
-				refresh_metadata(false);
 			}
 		}
+
+		close(memsocket);
 
 		inform_gossiping_pool();
 
@@ -479,6 +497,7 @@ void gossiping_thread() {
 void gossiping_start(pthread_t * thread) {
 	pthread_create(thread, NULL, gossiping_thread, NULL);
 }
+
 
 //Server
 void consola_knl(){
@@ -840,8 +859,10 @@ void perform_metrics() {
 
 void metrics_thread() {
 	while(1) {
+		/*custom_print("\nstart metr\n");
 		perform_metrics();
 		restart_criterion_stats();
+		custom_print("\nend metr\n");*/
 		sleep(30);
 	}
 }
@@ -970,7 +991,7 @@ _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions
 	MemPoolData * selected_memory = select_memory_by_consistency(consistency, -1);
 	if(selected_memory == null) {
 		//log_error(logger, "No available memory for table");
-		custom_print("\tCreate fallo\n");
+		custom_print("\tCreate fallo, falta memoria\n");
 		return false;
 	}
 

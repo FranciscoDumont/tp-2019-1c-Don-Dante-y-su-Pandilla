@@ -211,10 +211,8 @@ int lfs_server() {
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 						int res_len = strlen(select_result) + 1;
 						send(fd, &res_len, sizeof(int), 0);
-						send(fd, select_result, (res_len-1) * sizeof(char), 0);
-						char aosdjaosdoasd = '\0';
+						send(fd, select_result, res_len * sizeof(char), 0);
 						custom_print("\Resultado exitoso %s\n", select_result);
-						send(fd, &aosdjaosdoasd, sizeof(char), 0);
 					}
 					//free(select_result)
 					;
@@ -989,7 +987,6 @@ char * select_fs(char * table_name, int key) {
 
 	if(hits->elements_count == 0) {
 		//no hay registros con esa key
-		custom_print("\t\tValor desconocido\n");
 		return "UNKNOWN";
 	}
 

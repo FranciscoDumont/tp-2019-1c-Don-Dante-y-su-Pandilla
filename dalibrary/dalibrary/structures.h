@@ -194,8 +194,6 @@ typedef struct _KNLConfig {
 	int multiprocessing_grade;
 	int metadata_refresh;
 	int exec_delay;
-
-	int current_multiprocessing;
 } KNLConfig;
 
 typedef struct {
@@ -219,6 +217,7 @@ typedef struct _lql {
 	char * lql_name;
 	int quantum_counter;
 	unsigned int lqlid;
+	int instruction_counter;
 } LQLScript;
 
 typedef struct _consistency_criterion {

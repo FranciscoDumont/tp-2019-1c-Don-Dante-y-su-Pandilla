@@ -33,6 +33,7 @@ typedef struct {
 
 t_list * instruction_list;
 
+pthread_mutex_t mutex_requests;
 pthread_mutex_t journal_by_time;
 
 void gossiping_start(pthread_t * thread);
@@ -94,8 +95,6 @@ int main(int argc, char **argv) {
 		config_path = strdup(argv[1]);
 	}
 
-	MUTEX_DEBUG_LEVEL = MX_ALL_DISPLAY;
-
 	custom_print("Leyendo Configuracion\n");
 	_read_config();
 	pthread_t config_notify_thread;
@@ -143,6 +142,7 @@ int main(int argc, char **argv) {
 	server_start(&thread_server);
 
 	int mutex_ok = init_normal_mutex(&journal_by_time, "Journal mutex");
+	init_normal_mutex(&mutex_requests, "REQUEST");
 
 	if(mutex_ok){
 		log_info(logger, "Se crea el mutex para el journal por tiempo");
@@ -250,18 +250,16 @@ int obtener_tamanio_pagina() {
 
 void journal_start(pthread_t * journal_thread){
 	pthread_create(journal_thread, NULL, journal_routine, NULL);
-
 }
 
 void journal_routine(){
 	while(1) {
-
 		usleep(config.journal_time * 1000);
-
+		lock_mutex(&mutex_requests);
 		custom_print("\tInicia journal\n");
 		log_info(logger, "Se inicia el JOURNAL por tiempo");
 		journal();
-
+		unlock_mutex(&mutex_requests);
 	}
 }
 
@@ -328,7 +326,7 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 
 	Instruction * i = malloc(sizeof(Instruction));
 	i->table_name = nombre_tabla;
-	i->c_type = INSERT;
+	i->i_type = INSERT;
 	i->key = key;
 	i->value = valor;
 	i->timestamp = timestamp;
@@ -482,6 +480,7 @@ char * select_mem(char * table_name, int key){
 
 			log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
 			custom_print("\tLFS informa valor %s\n", value);
+			return value;
 
 			exit_value = EXIT_SUCCESS;
 			/*
@@ -625,8 +624,10 @@ int drop_mem(char * table_name){
 
 	Instruction * i = malloc(sizeof(Instruction));
 	i->table_name = table_name;
-	i->c_type = DROP;
+	i->i_type = DROP;
+	custom_print("a agregar en la lista");
 	add_instruction(i);
+	custom_print("agrega2");
 
 	return exit_value;
 }
@@ -647,13 +648,13 @@ int journal(){
 		Instruction * i;
 
 		custom_print("Tomo primera instruccion\n");
-		i = list_get(instruction_list, 0);
-		int step = 1;
+		int step = 0;
+		i = list_get(instruction_list, step++);
 	
 		if(0 == elements_count){
 			log_info(logger, "No hay instrucciones para journalear");
 		}else{
-			while(step <= elements_count){
+			while(i != null){
 				custom_print("%s %d %s asdasd\n", i->table_name, i->key, i->value);
 
 				log_info(logger, "J\tPaso %d de %d", step, elements_count);
@@ -672,13 +673,16 @@ int journal(){
 						break;
 					}
 				}*/
-				i = list_get(instruction_list, step);
-				step++;
+				i = list_get(instruction_list, step++);
 			}
 		}
+		custom_print("\tPase de instrucciones finalizado\n");
 
 		free_tables(instruction_list);
+		custom_print("\tTablas liberadas\n");
+
 		list_clean(instruction_list);
+		custom_print("\tInstrucciones limpiadas\n");
 	}
 	custom_print("\tJournal finalizado\n");
 	r = unlock_mutex(&journal_by_time);
@@ -721,7 +725,6 @@ int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long ti
 
 
 int modified_page(char * table_name, int key){
-
 	segmento_t * aux_segment = find_segmento(table_name);
 	pagina_t * aux_page = find_pagina_en_segmento(key, aux_segment);
 
@@ -730,28 +733,26 @@ int modified_page(char * table_name, int key){
 
 
 void free_tables(){
-
-	int elements_count = list_size(instruction_list);
 	Instruction * i;
-	i = list_get(instruction_list, 0);
-	int step = 1;
+	int step = 0;
+	i = list_get(instruction_list, step++);
 
-	while(step <= elements_count){
-
+	while(i != null){
 		liberar_segmento(i -> table_name);
-
-		i = list_get(instruction_list, step);
-		step++;
+		i = list_get(instruction_list, step++);
 	}
-
 }
 
 
 void add_instruction(Instruction* i){
 	i->table_name = strdup(i->table_name);
+	custom_print("Agregando %s %d", i->table_name, is_drop(i));
 
 	if(is_drop(i) && !list_is_empty(instruction_list)){
+		custom_print("Limpiar lista de instrucciones");
 		delete_instructions(i -> table_name);
+
+		custom_print("Lista de instrucciones limpada");
 	}else if(is_drop(i) && list_is_empty(instruction_list)){
 	}else{
 		i->value = strdup(i->value);
@@ -763,7 +764,6 @@ void add_instruction(Instruction* i){
 
 
 void delete_instructions(char * target_table){
-
 	int elements_count = list_size(instruction_list);
 	Instruction * i;
 	i = list_get(instruction_list, 0);
@@ -775,13 +775,10 @@ void delete_instructions(char * target_table){
 		step++;
 		i = list_get(instruction_list, step);
 	}
-
-	//free(i);
-
 }
 
 
-int is_drop(Instruction* i){
+int is_drop(Instruction * i){
 	return (i -> i_type == DROP);
 }
 
@@ -1028,6 +1025,7 @@ void sacar_lru(){
 
 void liberar_segmento(char* table_name){
 	segmento_t* segmento = find_segmento(table_name);
+	if(segmento == null) return;
 
 	void liberar_pagina(pagina_t* una_pagina){
 		//no borra los datos en memoria, solo deja disponible el indice en el mapa memoria
@@ -1075,6 +1073,7 @@ void add_to_pool(MemPoolData * mem) {
 }
 void gossiping_thread() {
 	while(1) {
+		lock_mutex(&mutex_requests);
 		int a;
 		list_clean(gossiping_list);
 		log_info(logger, "GOS");
@@ -1125,6 +1124,7 @@ void gossiping_thread() {
 
 		}
 		inform_gossiping_pool();
+		unlock_mutex(&mutex_requests);
 
 		usleep(config.gossiping_time * 1000);
 	}
@@ -1147,6 +1147,7 @@ int server_function() {
 	void lost(int fd, char * ip, int port) {
 	}
 	void incoming(int fd, char * ip, int port, MessageHeader * header) {
+		lock_mutex(&mutex_requests);
 		switch(header->type) {
 			case GOSSIPING_REQUEST:
 				;
@@ -1162,10 +1163,13 @@ int server_function() {
 					MemPoolData * this_mem = list_get(gossiping_list, a);
 
 					log_info(logger, "   %d %s %d\n", this_mem->memory_id, this_mem->ip, this_mem->port);
+					this_mem->ip[strlen(this_mem->ip)] = '\0';
 
 					send(fd, &this_mem->port, sizeof(int), 0);
 					send(fd, &this_mem->memory_id, sizeof(int), 0);
 					send(fd, this_mem->ip, sizeof(char) * IP_LENGTH, 0);
+
+					custom_print("sent %d %s %d\n", this_mem->memory_id, this_mem->ip, this_mem->port);
 				}
 				break;
 			case KNL_MEM_CREATE:
@@ -1329,6 +1333,7 @@ int server_function() {
 
 				break;
 		}
+		unlock_mutex(&mutex_requests);
 	}
 	start_server(config.mysocket, &new, &lost, &incoming);
 }
