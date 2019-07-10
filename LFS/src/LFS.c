@@ -849,7 +849,12 @@ t_list * search_key_in_partitions(char * table_name, int key) {
 	t_list * results	= list_create();
 	table_name			= to_upper_string(table_name);
 
-	int partition		= get_key_partition(table_name, key);
+	int partition				= get_key_partition(table_name, key);
+	MemtableTableReg * table	= table_exists(table_name);
+
+	if(table == null) {
+		return results;
+	}
 
 	char * partition_file		= malloc(sizeof(char) * (strlen(table_name) + 15));
 	strcpy(partition_file, "Tables/");
@@ -979,8 +984,8 @@ char * select_fs(char * table_name, int key) {
 
 	t_list * hits = list_create();
 	list_add_all(hits, search_key_in_memtable  (table_name, key));
-	list_add_all(hits, search_key_in_partitions(table_name, key));
 	list_add_all(hits, search_key_in_temp_files(table_name, key));
+	list_add_all(hits, search_key_in_partitions(table_name, key));
 
 	if(hits->elements_count == 0) {
 		//no hay registros con esa key
@@ -1218,6 +1223,7 @@ void dump_memtable() {
 }
 
 void compact(char * table_name) {
+	if(table_name == null) return;
 	custom_print("Compact Started %s\n", table_name);
 	table_name = to_upper_string(table_name);
 	MemtableTableReg * table = table_exists(table_name);

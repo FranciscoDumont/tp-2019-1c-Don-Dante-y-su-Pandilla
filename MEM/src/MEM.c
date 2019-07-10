@@ -301,7 +301,7 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 					custom_print("\t\tDebo hacer journal\n");
 					journal();
 					custom_print("\t\tReintento Insert\n");
-					insert_mem(nombre_tabla,key,valor,timestamp);
+					return insert_mem(nombre_tabla,key,valor,timestamp);
 
 				}else {
 					//algoritmo de reemplazo
@@ -321,10 +321,19 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		log_info(logger, "No existia el segmento %s",nombre_tabla);
 		custom_print("\tNo existe el segmento, lo creo y reintento\n");
 		crear_segmento(nombre_tabla);
-		insert_mem(nombre_tabla,key,valor,timestamp);
+		return insert_mem(nombre_tabla,key,valor,timestamp);
 	}
 	total_operations++;
 	write_operations++;
+
+	Instruction * i = malloc(sizeof(Instruction));
+	i->table_name = nombre_tabla;
+	i->c_type = INSERT;
+	i->key = key;
+	i->value = valor;
+	i->timestamp = timestamp;
+	add_instruction(i);
+
 	custom_print("\tInsert finalizado\n");
 	return EXIT_SUCCESS;
 }
@@ -352,10 +361,10 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 		log_info(logger, "TABLA CREADA EN EL FILESYSTEM");
 		crear_segmento(table_name);
 		custom_print("\t\tCreo segmento\n");
-		custom_print("\tInsert finalizado\n");
+		custom_print("\tCreate finalizado\n");
 		exit_value = EXIT_SUCCESS;
 	} else {
-		custom_print("\tInsert fallido\n");
+		custom_print("\tCreate fallido\n");
 		log_info(logger, "LFS NO PUDO CREAR LA TABLA");
 		exit_value = EXIT_FAILURE;
 	}
@@ -475,6 +484,7 @@ char * select_mem(char * table_name, int key){
 			custom_print("\tLFS informa valor %s\n", value);
 
 			exit_value = EXIT_SUCCESS;
+			/*
 			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
 				if (hay_paginas_disponibles()){
 					log_info(logger, "Hay páginas disponibles, la página se creará");
@@ -500,7 +510,7 @@ char * select_mem(char * table_name, int key){
 						unsigned long timestamp_modificado = unix_epoch();
 					//	crear_pagina(table_name,key,valor_key,timestamp,1, timestamp_modificado);
 					}
-				}
+				}*/
 			} else {
 				custom_print("\tError en SELECT\n");
 				log_info(logger, "SELECT NO SE PUDO REALIZAR");
@@ -613,9 +623,12 @@ int drop_mem(char * table_name){
 		exit_value = EXIT_FAILURE;
 	}
 
+	Instruction * i = malloc(sizeof(Instruction));
+	i->table_name = table_name;
+	i->c_type = DROP;
+	add_instruction(i);
+
 	return exit_value;
-
-
 }
 
 // instruction_list es una variable global
@@ -628,10 +641,12 @@ int journal(){
 
 		//Solo se journalea el insert
 
-		custom_print("\tIniciado el Journal\n");
 		int elements_count = list_size(instruction_list);
+		custom_print("\tIniciado el Journal de %d instrucciones\n", elements_count);
 		log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
 		Instruction * i;
+
+		custom_print("Tomo primera instruccion\n");
 		i = list_get(instruction_list, 0);
 		int step = 1;
 	
@@ -639,49 +654,31 @@ int journal(){
 			log_info(logger, "No hay instrucciones para journalear");
 		}else{
 			while(step <= elements_count){
+				custom_print("%s %d %s asdasd\n", i->table_name, i->key, i->value);
+
 				log_info(logger, "J\tPaso %d de %d", step, elements_count);
-				if(modified_page(i -> table_name, i->key)){
+
+				insert_into_lfs(i->table_name, i->key, i->value, i->timestamp);
+				/*if(modified_page(i -> table_name, i->key)){
+					custom_print("%s %d %s asdasd\n", i->table_name, i->key, i->value);
 					switch(i -> i_type){
-						case INSERT:
-							log_info(logger, "J\tEs un INSERT");
+					case INSERT:
+						log_info(logger, "J\tEs un INSERT");
 
-							char * nombre_tabla = i -> table_name;
-							int key = i -> key;
-							char * valor = i -> value;
-							unsigned long timestamp = i -> timestamp;
-							insert_into_lfs(nombre_tabla, key, valor, timestamp);
-
-							}
-							break;
-							/*
-						case CREATE:
-							log_info(logger, "J\tEs un CREATE");
-							create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
-							break;
-							 */
+						char * nombre_tabla = i -> table_name;
+						int key = i -> key;
+						char * valor = i -> value;
+						unsigned long timestamp = i -> timestamp;
+						break;
 					}
-				}
-				/*
-				else {
-					switch(i -> i_type){
-						case SELECT:
-							log_info(logger, "J\tEs un SELECT");
-							select_mem(i -> table_name, i -> key);
-							break;
-						case DESCRIBE:
-							log_info(logger, "J\tEs un DESCRIBE");
-							describe_mem(i -> table_name);
-							break;
-					}
-
-				}
-				 */
+				}*/
 				i = list_get(instruction_list, step);
 				step++;
 			}
+		}
 
-			free_tables(instruction_list);
-			list_clean(instruction_list);
+		free_tables(instruction_list);
+		list_clean(instruction_list);
 	}
 	custom_print("\tJournal finalizado\n");
 	r = unlock_mutex(&journal_by_time);
@@ -692,6 +689,7 @@ int journal(){
 int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long timestamp){
 	//El journal usa esta funcion para pasarle a LFS todos los inserts que tiene que hacer
 
+	custom_print("\tInserto en LFS %s %d %s\n", nombre_tabla, key, valor);
 	log_info(logger, "LE MANDO UN INSERT A LFS: insert_into_lfs(%s, %d, %s, %d)", nombre_tabla, key, valor, timestamp);
 	int exit_value;
 	send_data(config.lfs_socket, MEM_LFS_INSERT, 0, null);
@@ -750,14 +748,15 @@ void free_tables(){
 
 
 void add_instruction(Instruction* i){
+	i->table_name = strdup(i->table_name);
 
 	if(is_drop(i) && !list_is_empty(instruction_list)){
 		delete_instructions(i -> table_name);
-		drop_mem(i -> table_name);
 	}else if(is_drop(i) && list_is_empty(instruction_list)){
-		drop_mem(i -> table_name);
 	}else{
+		i->value = strdup(i->value);
 		list_add(instruction_list, i);
+		i = list_get(instruction_list, instruction_list->elements_count-1);
 	}
 
 }
@@ -1385,8 +1384,6 @@ void execute_mem(comando_t* unComando){
 			i-> c_type = NULL;
 			i-> partitions = NULL;
 			i-> compaction_time = NULL;
-
-			add_instruction(i);
 			*/
 
 			char * v = select_mem(parametro1, atoi(parametro2));
@@ -1428,8 +1425,6 @@ void execute_mem(comando_t* unComando){
 				i -> timestamp = strtoul(parametro4,NULL,10);
 			}
 			insert_mem(parametro1,atoi(parametro2),parametro3, i->timestamp);
-
-			add_instruction(i);
 		}
 
 	//CREATE
@@ -1461,8 +1456,6 @@ void execute_mem(comando_t* unComando){
 			i-> c_type = consistency;
 			i-> partitions = partitions;
 			i-> compaction_time = compaction_time;
-
-			add_instruction(i);
 			*/
 
 			create_mem(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
@@ -1485,8 +1478,6 @@ void execute_mem(comando_t* unComando){
 		i-> c_type = NULL;
 		i-> partitions = NULL;
 		i-> compaction_time = NULL;
-
-		add_instruction(i);
 		*/
 
 		describe_mem(parametro1);
@@ -1512,8 +1503,6 @@ void execute_mem(comando_t* unComando){
 		i-> c_type = NULL;
 		i-> partitions = NULL;
 		i-> compaction_time = NULL;
-
-		add_instruction(i);
 		*/
 
 
