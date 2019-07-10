@@ -369,7 +369,7 @@ char * select_mem(char * table_name, int key){
 						log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
 						sacar_lru();
 						unsigned long timestamp_modificado = unix_epoch();
-						crear_pagina(table_name,key,valor_key,timestamp,1, timestamp_modificado);
+					//	crear_pagina(table_name,key,valor_key,timestamp,1, timestamp_modificado);
 					}
 				}
 			} else {
@@ -404,11 +404,44 @@ char * select_mem(char * table_name, int key){
 			log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
 
 			exit_value = EXIT_SUCCESS;
-		
-	}
-	}
+			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
+				if (hay_paginas_disponibles()){
+					log_info(logger, "Hay páginas disponibles, la página se creará");
+					unsigned long timestamp = unix_epoch();
+					unsigned long timestamp_modificado = unix_epoch();
+					crear_pagina(table_name,key,value,timestamp,1, timestamp_modificado);
+					pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
+					log_info(logger, "Se devuelve el valor de la pagina");
+					char* value = get_pagina_value(key_buscada);
+					log_info(logger, "VALOR= %s", value);
+					return value;
+				}else{
+					log_info(logger, "No hay páginas disponibles");
+			
+					if (memoria_esta_full()){
+						//Hacer el journal
+						journal();
 
-}
+					}else {
+						//ejecutamos el algoritmo de reemplazo
+						log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
+						sacar_lru();
+						unsigned long timestamp_modificado = unix_epoch();
+					//	crear_pagina(table_name,key,valor_key,timestamp,1, timestamp_modificado);
+					}
+				}
+			} else {
+				log_info(logger, "SELECT NO SE PUDO REALIZAR");
+
+				exit_value = EXIT_FAILURE;
+			
+
+		
+					}
+								}
+
+			}
+
 
 t_list * describe_mem(char * table_name){
 	t_list * result = list_create();
@@ -692,7 +725,7 @@ void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long time
 		set_pagina_timestamp(pagina_encontrada,timestamp);
 		set_pagina_key(pagina_encontrada,key);
 		set_pagina_value(pagina_encontrada,valor);
-		set_pagina_timestamp_modificado(pagina_encontrada, timestamp_modificado)
+		set_pagina_timestamp_modificado(pagina_encontrada, timestamp_modificado);
 	} else {
 		log_info(logger, "NO SE ENCONTRO LA PAGINA %d en la tabla %s => NO SE PUDO COMPLETA LA OPERACION",key,nombre_tabla);
 	} 
@@ -884,12 +917,15 @@ void sacar_lru(){
 										  }
 										
 							 }
-/*	int key = get_pagina_key(pagina_lru);
+	int key = get_pagina_key(pagina_lru);
 	unsigned long tsm = get_pagina_timestamp_modificado(pagina_lru);
 	char* valor = get_pagina_value(pagina_lru);
 
-*/	log_info(logger, "La pagina least recently used es la del segmento %s, key %d con un ts modificado de %u y valor %s. Liberando..",segmento_contenedor_pagina_lru->nombre, key, tsm, valor);
-	liberar_pagina(pagina_lru);
+	log_info(logger, "La pagina least recently used es la del segmento %s, key %d con un ts modificado de %u y valor %s. Liberando..",segmento_contenedor_pagina_lru->nombre, key, tsm, valor);
+	int i = pagina_lru->nro_pagina;
+	mapa_memoria[i] = 0;
+	free(pagina_lru);
+
 
 	// Esta funcion deberia buscar la pagina que se uso hace mas tiempo
 	// con el flag de modificado en 0
