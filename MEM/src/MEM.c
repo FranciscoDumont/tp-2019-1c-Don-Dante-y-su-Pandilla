@@ -855,12 +855,39 @@ void mostrarPaginas(){
 					  }
 
 void sacar_lru(){
+	int size = list_size(tabla_segmentos);
+	unsigned long timestamp = unix_epoch();
+	pagina_t * pagina_lru;
+	segmento_t * segmento_contenedor_pagina_lru;
+	for(int i=0; i<size; i++){
+		segmento_t * s = list_get(tabla_segmentos, i);
+		int int_cant_pags = list_size(s->paginas);
+		for(int x=0; x<int_cant_pags; x++){
+			pagina_t * t = list_get(s->paginas, x);
+			unsigned long ts = get_pagina_timestamp(t);
+			unsigned long tsm = get_pagina_timestamp_modificado(t);
+
+			if(tsm < timestamp && t->flag_modificado == 0) {
+				timestamp = tsm;
+				pagina_lru = t;
+				segmento_contenedor_pagina_lru = s;
+			}
+			char * valor = get_pagina_value(t);
+										  }
+										
+							 }
+/*	int key = get_pagina_key(pagina_lru);
+	unsigned long tsm = get_pagina_timestamp_modificado(pagina_lru);
+	char* valor = get_pagina_value(pagina_lru);
+
+*/	log_info(logger, "La pagina least recently used es la del segmento %s, key %d con un ts modificado de %u y valor %s. Liberando..",segmento_contenedor_pagina_lru->nombre, key, tsm, valor);
+	liberar_pagina(pagina_lru);
+
 	// Esta funcion deberia buscar la pagina que se uso hace mas tiempo
 	// con el flag de modificado en 0
 	// y sacar esa pagina de las paginas
 	return;
 }
-
 
 void liberar_segmento(char* table_name){
 	segmento_t* segmento = find_segmento(table_name);
