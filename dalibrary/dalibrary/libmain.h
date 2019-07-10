@@ -23,6 +23,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+#include <sys/inotify.h>
+#include <limits.h>
+
 #include <dirent.h>
 #include <pthread.h>
 #include <unistd.h>

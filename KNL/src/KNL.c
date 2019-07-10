@@ -47,14 +47,21 @@ void execute_knl(comando_t* unComando);
 void info();
 void consola_knl();
 
+char * config_path;
+void notify_config_thread();
 int main(int argc, char **argv) {
 	if (argc != 2) {
-		config_file = config_create("knl01.cfg");
+		config_path = strdup("knl01.cfg");
 	} else {
-		config_file = config_create(argv[1]);
+		config_path = strdup(argv[1]);
 	}
 	inform_thread_id("main");
 	int qa;
+
+	_read_config();
+	pthread_t config_notify_thread;
+	pthread_create(&config_notify_thread, NULL, notify_config_thread, NULL);
+	pthread_detach(config_notify_thread);
 
 	gossiping_list = list_create();
 	new_queue = list_create();
@@ -82,14 +89,6 @@ int main(int argc, char **argv) {
 	init_normal_mutex(&ready_queue_mutex, "READY_QUEUE");
 	init_normal_mutex(&criterions_mutex, "CRITERIONS");
 	init_normal_mutex(&tables_mutex, "TABLES_MUTEX");
-
-	config.a_memory_ip = config_get_string_value(config_file, "IP_MEMORIA");
-	config.a_memory_port = config_get_int_value(config_file, "PUERTO_MEMORIA");
-	config.quantum = config_get_int_value(config_file, "QUANTUM");
-	config.multiprocessing_grade = config_get_int_value(config_file, "MULTIPROCESAMIENTO");
-	config.metadata_refresh = config_get_int_value(config_file, "METADATA_REFRESH");
-	config.exec_delay = config_get_int_value(config_file, "SLEEP_EJECUCION");
-	config.current_multiprocessing = 0;
 
 	logger = log_create("kernel_logger.log", "KNL", true, LOG_LEVEL_TRACE);
 	metrics_logger = log_create("metrics_logger.log", "KNL", false, LOG_LEVEL_TRACE);
@@ -124,6 +123,49 @@ int main(int argc, char **argv) {
 	pthread_join(metrics_id, NULL);
 
 	return EXIT_SUCCESS;
+}
+
+void notify_config_thread() {
+	int inotifyFd = inotify_init();
+	int wd = inotify_add_watch(inotifyFd, config_path, IN_ALL_EVENTS);
+	int BUF_LEN = 1024 * 10;
+	char buf[BUF_LEN] __attribute__ ((aligned(8)));
+	ssize_t numRead;
+	char *p;
+	struct inotify_event *event;
+
+	for (;;) {                                  /* Read events forever */
+		numRead = read(inotifyFd, buf, BUF_LEN);
+		if (numRead == 0)
+			printf("read() from inotify fd returned 0!");
+
+		if (numRead == -1)
+			printf("read");
+
+		for (p = buf; p < buf + numRead; ) {
+			event = (struct inotify_event *) p;
+			read_config(event);
+
+			p += sizeof(struct inotify_event) + event->len;
+		}
+	}
+}
+
+void read_config(struct inotify_event *i) {
+	if (i->mask & IN_CLOSE_WRITE) {
+		_read_config();
+	}
+}
+void _read_config() {
+	config_file = config_create(config_path);
+
+	config.a_memory_ip = config_get_string_value(config_file, "IP_MEMORIA");
+	config.a_memory_port = config_get_int_value(config_file, "PUERTO_MEMORIA");
+	config.quantum = config_get_int_value(config_file, "QUANTUM");
+	config.multiprocessing_grade = config_get_int_value(config_file, "MULTIPROCESAMIENTO");
+	config.metadata_refresh = config_get_int_value(config_file, "METADATA_REFRESH");
+	config.exec_delay = config_get_int_value(config_file, "SLEEP_EJECUCION");
+	config.current_multiprocessing = 0;
 }
 
 void running(int n) {

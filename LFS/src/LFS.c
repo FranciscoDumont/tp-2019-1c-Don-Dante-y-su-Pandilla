@@ -46,18 +46,19 @@ void compact_thread(MemtableTableReg * table);
 void dump_thread();
 int lfs_server();
 
+char * config_path;
+void notify_config_thread();
 int main(int argc, char **argv) {
 	if (argc != 2) {
-		config_file = config_create("lfs01.cfg");
+		config_path = strdup("lfs01.cfg");
 	} else {
-		config_file = config_create(argv[1]);
+		config_path = strdup(argv[1]);
 	}
 
-	config.port				= config_get_int_value(config_file, "PUERTO_ESCUCHA");
-	config.mounting_point	= config_get_string_value(config_file, "PUNTO_MONTAJE");
-	config.delay			= config_get_int_value(config_file, "RETARDO");
-	config.value_size		= config_get_int_value(config_file, "TAMAÑO_VALUE");
-	config.dump_delay		= config_get_int_value(config_file, "TIEMPO_DUMP");
+	_read_config();
+	pthread_t config_notify_thread;
+	pthread_create(&config_notify_thread, NULL, notify_config_thread, NULL);
+	pthread_detach(config_notify_thread);
 
 	logger = log_create("filesystem_logger.log", "LFS", true, LOG_LEVEL_TRACE);
 
@@ -81,6 +82,49 @@ int main(int argc, char **argv) {
 	pthread_join(lfs_console_id, NULL);
 
 	return EXIT_SUCCESS;
+}
+
+void notify_config_thread() {
+	int inotifyFd = inotify_init();
+	int wd = inotify_add_watch(inotifyFd, config_path, IN_ALL_EVENTS);
+	int BUF_LEN = 1024 * 10;
+	char buf[BUF_LEN] __attribute__ ((aligned(8)));
+	ssize_t numRead;
+	char *p;
+	struct inotify_event *event;
+
+	for (;;) {                                  /* Read events forever */
+		numRead = read(inotifyFd, buf, BUF_LEN);
+		if (numRead == 0)
+			printf("read() from inotify fd returned 0!");
+
+		if (numRead == -1)
+			printf("read");
+
+		for (p = buf; p < buf + numRead; ) {
+			event = (struct inotify_event *) p;
+			read_config(event);
+
+			p += sizeof(struct inotify_event) + event->len;
+		}
+	}
+}
+
+void read_config(struct inotify_event *i) {
+	if (i->mask & IN_CLOSE_WRITE) {
+		_read_config();
+	}
+}
+void _read_config() {
+	config_file = config_create(config_path);
+
+	config.port				= config_get_int_value(config_file, "PUERTO_ESCUCHA");
+	config.mounting_point	= config_get_string_value(config_file, "PUNTO_MONTAJE");
+	config.delay			= config_get_int_value(config_file, "RETARDO");
+	config.value_size		= config_get_int_value(config_file, "TAMAÑO_VALUE");
+	config.dump_delay		= config_get_int_value(config_file, "TIEMPO_DUMP");
+
+	custom_print("DUMP_DELAY %d", config.dump_delay);
 }
 
 int lfs_server() {

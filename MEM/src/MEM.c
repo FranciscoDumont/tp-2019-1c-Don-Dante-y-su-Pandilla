@@ -85,40 +85,23 @@ int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long ti
 void set_pagina_timestamp_modificado(pagina_t * p, unsigned long timestamp_modificacion);
 void mostrarPaginas();
 
-
+char * config_path;
+void notify_config_thread();
 int main(int argc, char **argv) {
 	if (argc != 2) {
-		config_file = config_create("mem03.cfg");
+		config_path = strdup("mem03.cfg");
 	} else {
-		config_file = config_create(argv[1]);
+		config_path = strdup(argv[1]);
 	}
 
 	MUTEX_DEBUG_LEVEL = MX_ALL_DISPLAY;
 
+	_read_config();
+	pthread_t config_notify_thread;
+	pthread_create(&config_notify_thread, NULL, notify_config_thread, NULL);
+	pthread_detach(config_notify_thread);
+
 	gossiping_list = list_create();
-
-	config.port = config_get_int_value(config_file, "PUERTO");
-	config.lfs_ip = config_get_string_value(config_file, "IP_FS");
-	config.lfs_port = config_get_int_value(config_file, "PUERTO_FS");
-	config.seeds_ips = config_get_array_value(config_file, "IP_SEEDS");
-	config.seeds_ports = config_get_array_value(config_file, "PUERTO_SEEDS");
-	config.access_delay = config_get_int_value(config_file, "RETARDO_MEM");
-	config.lfs_delay = config_get_int_value(config_file, "RETARDO_FS");
-	config.memsize = config_get_int_value(config_file, "TAM_MEM");
-	config.journal_time = config_get_int_value(config_file, "RETARDO_JOURNAL");
-	config.gossiping_time = config_get_int_value(config_file, "RETARDO_GOSSIPING");
-	config.memory_id = config_get_int_value(config_file, "MEMORY_NUMBER");
-	config.seeds_q = 0;
-
-	char * temp_seeds_q = config_get_string_value(config_file, "IP_SEEDS");
-	if(strcmp("[]", temp_seeds_q) != 0) {
-		int a;
-		config.seeds_q++;
-		for(a = 0 ; a < strlen(temp_seeds_q) ; a++) {
-			if(temp_seeds_q[a] == ',') config.seeds_q++;
-		}
-	}
-	free(temp_seeds_q);
 
 	char * memory_logger_path = malloc(sizeof(char) * (25));
 	strcpy(memory_logger_path, "memory_logger_");
@@ -188,6 +171,64 @@ int main(int argc, char **argv) {
 
 	free(mapa_memoria);
 	return EXIT_SUCCESS;
+}
+
+void notify_config_thread() {
+	int inotifyFd = inotify_init();
+	int wd = inotify_add_watch(inotifyFd, config_path, IN_ALL_EVENTS);
+	int BUF_LEN = 1024 * 10;
+	char buf[BUF_LEN] __attribute__ ((aligned(8)));
+	ssize_t numRead;
+	char *p;
+	struct inotify_event *event;
+
+	for (;;) {                                  /* Read events forever */
+		numRead = read(inotifyFd, buf, BUF_LEN);
+		if (numRead == 0)
+			printf("read() from inotify fd returned 0!");
+
+		if (numRead == -1)
+			printf("read");
+
+		for (p = buf; p < buf + numRead; ) {
+			event = (struct inotify_event *) p;
+			read_config(event);
+
+			p += sizeof(struct inotify_event) + event->len;
+		}
+	}
+}
+
+void read_config(struct inotify_event *i) {
+	if (i->mask & IN_CLOSE_WRITE) {
+		_read_config();
+	}
+}
+void _read_config() {
+	config_file = config_create(config_path);
+
+	config.port = config_get_int_value(config_file, "PUERTO");
+	config.lfs_ip = config_get_string_value(config_file, "IP_FS");
+	config.lfs_port = config_get_int_value(config_file, "PUERTO_FS");
+	config.seeds_ips = config_get_array_value(config_file, "IP_SEEDS");
+	config.seeds_ports = config_get_array_value(config_file, "PUERTO_SEEDS");
+	config.access_delay = config_get_int_value(config_file, "RETARDO_MEM");
+	config.lfs_delay = config_get_int_value(config_file, "RETARDO_FS");
+	config.memsize = config_get_int_value(config_file, "TAM_MEM");
+	config.journal_time = config_get_int_value(config_file, "RETARDO_JOURNAL");
+	config.gossiping_time = config_get_int_value(config_file, "RETARDO_GOSSIPING");
+	config.memory_id = config_get_int_value(config_file, "MEMORY_NUMBER");
+	config.seeds_q = 0;
+
+	char * temp_seeds_q = config_get_string_value(config_file, "IP_SEEDS");
+	if(strcmp("[]", temp_seeds_q) != 0) {
+		int a;
+		config.seeds_q++;
+		for(a = 0 ; a < strlen(temp_seeds_q) ; a++) {
+			if(temp_seeds_q[a] == ',') config.seeds_q++;
+		}
+	}
+	free(temp_seeds_q);
 }
 
 int obtener_tamanio_pagina() {
