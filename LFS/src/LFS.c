@@ -55,12 +55,15 @@ int main(int argc, char **argv) {
 		config_path = strdup(argv[1]);
 	}
 
+	custom_print("Leyendo Configuracion\n");
 	_read_config();
 	pthread_t config_notify_thread;
 	pthread_create(&config_notify_thread, NULL, notify_config_thread, NULL);
 	pthread_detach(config_notify_thread);
+	custom_print("Configuracion Leida\n");
 
-	logger = log_create("filesystem_logger.log", "LFS", true, LOG_LEVEL_TRACE);
+	logger = log_create("filesystem_logger.log", "LFS", false, LOG_LEVEL_TRACE);
+	custom_print("Log inicializado\n");
 
 	memtable = list_create();
 
@@ -123,8 +126,6 @@ void _read_config() {
 	config.delay			= config_get_int_value(config_file, "RETARDO");
 	config.value_size		= config_get_int_value(config_file, "TAMAÑO_VALUE");
 	config.dump_delay		= config_get_int_value(config_file, "TIEMPO_DUMP");
-
-	custom_print("DUMP_DELAY %d", config.dump_delay);
 }
 
 int lfs_server() {
@@ -146,12 +147,14 @@ int lfs_server() {
 		switch(header->type) {
 			case HANDSHAKE_MEM_LFS:
 				;
+				custom_print("Nueva memoria encontrada\n");
 				log_info(logger, "FOUND NEW MEMORY");
 				send_data(fd, HANDSHAKE_MEM_LFS_OK, sizeof(int), &config.value_size);
 				break;
 			case MEM_LFS_CREATE:
 				{
 					;
+					custom_print("Memoria indica creacion de nueva tabla\n");
 					log_info(logger, "NEW TABLE WILL BE CREATED");
 
 					int table_name_size;
@@ -161,6 +164,7 @@ int lfs_server() {
 					recv(fd, table_name, table_name_size, 0);
 					table_name[table_name_size / sizeof(char)] = '\0';
 					table_name = to_upper_string(table_name);
+					custom_print("\t%s\n", table_name);
 
 					int consistency, partitions, compaction_time;
 					recv(fd, &consistency, sizeof(int), 0);
@@ -171,14 +175,18 @@ int lfs_server() {
 					creation_result = create_fs(table_name, consistency, partitions, compaction_time);
 
 					if(creation_result == true) {
+						custom_print("\tCreacion exitosa\n");
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					} else {
+						custom_print("\tCreacion fallida\n");
 						send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
 					}
 				}
 				break;
 			case MEM_LFS_SELECT:
 				{
+					custom_print("Memoria realiza SELECT\n");
+
 					int table_name_size;
 					recv(fd, &table_name_size, sizeof(int), 0);
 					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
@@ -192,9 +200,12 @@ int lfs_server() {
 					int key_select;
 					recv(fd, &key_select, sizeof(int), 0);
 
+					custom_print("\t%s %d\n", table_name, key_select);
+
 					select_result = select_fs(table_name, key_select);
 
 					if(strcmp(select_result, "UNKNOWN") == 0){
+						custom_print("\tResultado Desconocido\n");
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}else{
 						send_data(fd, OPERATION_SUCCESS, 0, null);
@@ -202,6 +213,7 @@ int lfs_server() {
 						send(fd, &res_len, sizeof(int), 0);
 						send(fd, select_result, (res_len-1) * sizeof(char), 0);
 						char aosdjaosdoasd = '\0';
+						custom_print("\Resultado exitoso %s\n", select_result);
 						send(fd, &aosdjaosdoasd, sizeof(char), 0);
 					}
 					//free(select_result)
@@ -211,6 +223,9 @@ int lfs_server() {
 			case MEM_LFS_INSERT:
 				{
 					//int insert_fs(char * table_name, int key, char * value, unsigned long timestamp)
+
+					custom_print("Memoria realiza INSERT\n");
+
 					int table_name_size;
 					recv(fd, &table_name_size, sizeof(int), 0);
 					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
@@ -232,13 +247,18 @@ int lfs_server() {
 					// -----------------------------
 					recv(fd, &timestamp, sizeof(unsigned long), 0);
 
+
+					custom_print("\t%s %d %s\n", table_name, key, value);
+
 					int insert_result;
 					insert_result = insert_fs(table_name, key, value, timestamp);
 					free(value);
 
 					if(insert_result == 0){
+						custom_print("\tError al insertar, tabla no encontrada\n");
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}else{
+						custom_print("\tInsert exitoso\n");
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}
 
@@ -249,8 +269,13 @@ int lfs_server() {
 			case MEM_LFS_DESCRIBE:
 				{;
 					int sz;
+
+					custom_print("Memoria solicita DESCRIBE\n");
+
 					recv(fd, &sz, sizeof(int), 0);
 					if(sz == 0) {
+						custom_print("\tDe todas las tablas\n\t\t");
+
 						int q = memtable->elements_count, rec;
 						send(fd, &q, sizeof(int), 0);
 						for(rec=0 ; rec<q ; rec++) {
@@ -259,18 +284,24 @@ int lfs_server() {
 							send(fd, table, sizeof(MemtableTableReg), 0);
 							send(fd, &table_n_l, sizeof(int), 0);
 							send(fd, table->table_name, table_n_l * sizeof(char), 0);
+
+							custom_print("%s ", table->table_name);
 						}
 					} else {
 						char * table_name = malloc(sizeof(char) * sz);
 						recv(fd, table_name, sz, 0);
 
+						custom_print("\tDe tabla %s\n", table_name);
+
 						MemtableTableReg * table = table_exists(table_name);
 						int f;
 						if(table == null) {
 							f = 0;
+							custom_print("\tNo existe\n", table_name);
 							send(fd, &f, sizeof(int), 0);
 						} else {
 							f = 1;
+							custom_print("\tEnvio datos\n", table_name);
 							send(fd, &f, sizeof(int), 0);
 							send(fd, table, sizeof(MemtableTableReg), 0);
 						}
@@ -280,6 +311,8 @@ int lfs_server() {
 			case MEM_LFS_DROP:
 					;
 				{
+					custom_print("Memoria indica DROP\n");
+
 					int table_name_size;
 					recv(fd, &table_name_size, sizeof(int), 0);
 					char * table_name = malloc(sizeof(table_name_size) + sizeof(char));
@@ -287,11 +320,15 @@ int lfs_server() {
 					recv(fd, table_name, table_name_size, 0);
 					table_name[table_name_size / sizeof(char)] = '\0';
 
+					custom_print("\t%s\n", table_name);
+
 					int drop_result = drop_fs(table_name);
 
 					if(drop_result == true){
+						custom_print("\tDROP Exitoso\n");
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}else{
+						custom_print("\tDROP Fallido\n");
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}
 				}
@@ -300,6 +337,7 @@ int lfs_server() {
 		}
 	}
 	// free(table_name);
+	custom_print("SERVER LFS Iniciado\n");
 	log_info(logger, "Iniciado server de LFS");
 	start_server(config.mysocket, &new, &lost, &incoming);
 }
@@ -341,6 +379,7 @@ char * generate_table_metadata_path(char * table_name) {
 }
 
 void up_filesystem() {
+	custom_print("Levantando FILESYSTEM\n");
 	fsconfig.metadatapath = malloc(sizeof(char) * (strlen(config.mounting_point) + 22));
 
 	strcpy(fsconfig.metadatapath, config.mounting_point);
@@ -422,6 +461,7 @@ void up_filesystem() {
 	}
 	free(tables_dirent);
 
+	custom_print("FILESYSTEM UP\n");
 	log_info(logger, "Filesystem Up");
 }
 
@@ -691,11 +731,16 @@ int get_key_partition(char * table_name, int key) {
 }
 
 int insert_fs(char * table_name, int key, char * value, unsigned long timestamp) {
+	custom_print("\t\tInicia Insert\n");
+
 	MemtableTableReg * tablereg = table_exists(table_name);
 	if(tablereg == null) {
+		custom_print("\t\tTabla inexistente\n");
 		log_error(logger, "Non existent table");
 		return false;
 	}
+
+	custom_print("\t\tTabla encontrada\n");
 
 	if(tablereg->records == null) {
 		tablereg->records = list_create();
@@ -709,12 +754,16 @@ int insert_fs(char * table_name, int key, char * value, unsigned long timestamp)
 
 	list_add(tablereg->records, registry);
 
+	custom_print("\t\tInsert Realizado\n");
+
 	return true;
 }
 
 int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time) {
+	custom_print("\t\tInicia Create %s\n", table_name);
 	MemtableTableReg * table_reg = table_exists(table_name);
 	if(table_reg != null) {
+		custom_print("\t\tLa tabla ya existe\n");
 		log_error(logger, "The table already exists %s", table_reg->table_name);
 		return false;
 	}
@@ -770,6 +819,7 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 
 	list_add(memtable, table_reg);
 
+	custom_print("\t\tLa tabla fue creada\n");
 	log_info(logger, "Table created %s", table_name);
 
 	return true;
@@ -925,6 +975,8 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 }
 
 char * select_fs(char * table_name, int key) {
+	custom_print("\t\tInicia Select\n");
+
 	t_list * hits = list_create();
 	list_add_all(hits, search_key_in_memtable  (table_name, key));
 	list_add_all(hits, search_key_in_partitions(table_name, key));
@@ -932,6 +984,7 @@ char * select_fs(char * table_name, int key) {
 
 	if(hits->elements_count == 0) {
 		//no hay registros con esa key
+		custom_print("\t\tValor desconocido\n");
 		return "UNKNOWN";
 	}
 
@@ -947,16 +1000,21 @@ char * select_fs(char * table_name, int key) {
 		}
 	}
 
+	custom_print("\t\tEl valor es %s\n", final_hit->value);
 	return final_hit->value;
 }
 
 void inform_table_metadata(MemtableTableReg * reg) {
+	custom_print("\t\t\tTABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s\n",
+			reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
 	log_info(logger, "TABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s",
 		reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
 }
 
 int describe_fs(char * table_name) { //table_name puede ser nulo
+	custom_print("\t\tInicia Describe\n");
 	if(table_name == null || table_name[0] == '\0') {
+		custom_print("\t\tDe todas las tablas\n");
 		DIR * tables_directory;
 		struct dirent * tables_dirent;
 		char * tables_basedir = generate_tables_basedir();
@@ -986,9 +1044,11 @@ int describe_fs(char * table_name) { //table_name puede ser nulo
 				}
 			}
 			closedir(tables_directory);
+			custom_print("\t\tFinaliza Describe\n");
 		}
 		return true;
 	} else {
+		custom_print("\t\tDe tabla %s\n", table_name);
 		table_name = to_upper_string(table_name);
 		char * metadatafilepath = generate_table_metadata_path(table_name);
 		FILE * metadatafile_ptr = fopen(metadatafilepath, "r");
@@ -1009,12 +1069,15 @@ int describe_fs(char * table_name) { //table_name puede ser nulo
 		reg->consistency		= char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
 		inform_table_metadata(reg);
+
+		custom_print("\t\tFinaliza Describe\n");
 		return true;
 	}
 	return false;
 }
 
 int drop_fs(char * table_name) {
+	custom_print("\t\tInicia Drop %s\n", table_name);
 	table_name = to_upper_string(table_name);
 	int index_in_memtable = -1, aux_counter = 0;
 
@@ -1028,10 +1091,12 @@ int drop_fs(char * table_name) {
 	list_iterate(memtable, search);
 
 	if(index_in_memtable != -1) {
+		custom_print("\t\tTabla eliminada\n");
 		MemtableTableReg * reg = list_get(memtable, index_in_memtable);
 		list_remove(memtable, index_in_memtable);
 		free(reg);
 	}else{
+		custom_print("\t\tLa tabla no existia\n");
 		return false;
 	}
 	char * metadatafilepath	= generate_table_metadata_path(table_name);
@@ -1094,6 +1159,8 @@ void dump_memtable() {
 		int dump_found				= 0;
 		(*dump_multiplier)			= 0;
 
+		custom_print("\tTabla %s\n", table->table_name);
+
 		while(dump_found == 0) {
 			dump_found = 1;
 			(*dump_multiplier)++;
@@ -1140,6 +1207,7 @@ void dump_memtable() {
 		char * pfilepath = malloc(sizeof(char) * (12 + strlen(table->table_name) + 3 + 1));
 		sprintf(pfilepath, "Tables/%s/%d.tmp", table->table_name, (*dump_multiplier));
 		save_file_contents(temp_content, pfilepath);
+		custom_print("\t\tDumpeado a %s\n", pfilepath);
 
 		list_add(table->dumping_queue, dump_multiplier);
 
@@ -1150,15 +1218,18 @@ void dump_memtable() {
 }
 
 void compact(char * table_name) {
+	custom_print("Compact Started %s\n", table_name);
 	table_name = to_upper_string(table_name);
 	MemtableTableReg * table = table_exists(table_name);
 	int tmp_iterator;
 
 	if(table == null) {
+		custom_print("\tLa tabla no existe\n");
 		return;
 	}
 
 	if(table->dumping_queue->elements_count == 0) {
+		custom_print("\tNo tiene archivos para compactar\n");
 		log_info(logger, "Table %s has no temp files to compact %d", table_name, table->compaction_time);
 		return;
 	}
@@ -1174,6 +1245,7 @@ void compact(char * table_name) {
 		char * command = malloc(sizeof(char) * (13 + 2 * (strlen(generate_table_basedir(table_name)) + 3)));
 		sprintf(command, "mv %s%d.tmp %s%d.tmpc", generate_table_basedir(table_name), (*dumping_multiplier),
 				generate_table_basedir(table_name), (*dumping_multiplier));
+		custom_print("\t%s\n", command);
 
 		system(command);
 		free(command);
@@ -1189,8 +1261,6 @@ void compact(char * table_name) {
 
 		char * file_content		= get_file_contents(temp_file_path);
 		char * buffer_temp		= malloc(strlen(file_content) * sizeof(char));
-
-		custom_print("\nTFILE %d\n\n%s\n\n", (*file_number), file_content);
 
 		int f_tr;
 		char * token;
@@ -1289,6 +1359,7 @@ void compact(char * table_name) {
 
 			remove_file(partition_file);
 
+			custom_print("\tReescrita particion %s\n", partition_file);
 			save_file_contents(new_partition_content, partition_file);
 
 			free(tnum);
@@ -1306,6 +1377,7 @@ void compact(char * table_name) {
 	}
 	list_clean(table->temp_c);
 
+	custom_print("Tabla compactada\n");
 	log_info(logger, "Compacted table %s", table_name);
 }
 
