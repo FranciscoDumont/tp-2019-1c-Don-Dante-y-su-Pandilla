@@ -1150,7 +1150,7 @@ void dump_thread() {
 }
 
 void dump_memtable() {
-	custom_print("Dump Started");
+	custom_print("Dump Started\n");
 	int aux_iterator, records_iterator, multiplier_iterator, counter;
 
 	for(aux_iterator=0 ; aux_iterator<memtable->elements_count ; aux_iterator++) {
@@ -1214,7 +1214,7 @@ void dump_memtable() {
 		free(temp_content);
 		free(pfilepath);
 	}
-	custom_print("Dump Finished");
+	custom_print("Dump Finished\n");
 }
 
 void compact(char * table_name) {

@@ -401,13 +401,16 @@ void metadata_refresh_loop() {
 //Gossiping
 void inform_gossiping_pool() {
 	//log_info(logger, "GOSSIPING LIST START");
+	custom_print("GOSSIPING LIST\n");
 
 	int a;
 	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
 		MemPoolData * this_mem = list_get(gossiping_list, a);
-		//log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
+		log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
+		custom_print("\t%d %s:%d\n", this_mem->memory_id, this_mem->ip, this_mem->port);
 	}
 
+	custom_print("GOSSIPING END\n");
 	//log_info(logger, "GOSSIPING LIST END");
 }
 void add_to_pool(MemPoolData * mem) {
@@ -468,7 +471,7 @@ void gossiping_thread() {
 			}
 		}
 
-		//inform_gossiping_pool();
+		inform_gossiping_pool();
 
 		usleep(config.metadata_refresh * 1000);
 	}
@@ -677,7 +680,7 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 	MemtableTableReg * tReg = find_table(table_name);
 
 	if(tReg == null) {
-		custom_print("Falla insert x tabla [%s]", table_name);
+		custom_print("\tLa tabla no existe\n");
 		//log_info(logger, "Tabla no existe");
 		return false;
 	}
@@ -720,9 +723,11 @@ _Bool insert_knl(char * table_name, int key, char * value, unsigned long timesta
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
 			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
+			custom_print("\tInsert realizado\n");
 			exit_value = true;
 		} else {
 			//log_info(logger, "INSERT ERROR");
+			custom_print("\tInsert fallo\n");
 			exit_value = false;
 		}
 
@@ -845,12 +850,14 @@ _Bool select_knl(char * table_name, int key){
 	MemtableTableReg * tReg = find_table(table_name);
 	if(tReg == null) {
 		//log_info(logger, "Tabla no existe");
+		custom_print("\tLa tabla no existe\n");
 		return false;
 	}
 
 	MemPoolData * selected_memory = select_memory_by_table(tReg, -1);
 	if(selected_memory == null) {
 		//log_error(logger, "No available memory for table");
+		custom_print("\tNo hay memorias para realizar la operacion\n");
 		return false;
 	}
 
@@ -886,12 +893,12 @@ _Bool select_knl(char * table_name, int key){
 			char* value = malloc(sizeof(char) * result_len);
 			recv(memsocket, value, result_len * sizeof(char), 0);
 
-			custom_print("   El valor es %s", value);
+			custom_print("\tEl valor es %s\n", value);
 			//log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
 			exit_value = true;
 		} else {
 			//log_info(logger, "SELECT ERROR");
-			custom_print("   El valor es desconocido");
+			custom_print("\tValor desconocido\n");
 			exit_value = true;
 		}
 
@@ -943,10 +950,12 @@ _Bool drop_knl(char * table_name){
 		MessageHeader * header = malloc(sizeof(MessageHeader));
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
+			custom_print("\tDrop realizado\n");
 			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
 			//log_info(logger, "DROP EN EL FILESYSTEM");
 			exit_value = true;
 		} else {
+			custom_print("\tDrop fallo\n");
 			//log_info(logger, "DROP ERROR");
 			exit_value = false;
 		}
@@ -961,6 +970,7 @@ _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions
 	MemPoolData * selected_memory = select_memory_by_consistency(consistency, -1);
 	if(selected_memory == null) {
 		//log_error(logger, "No available memory for table");
+		custom_print("\tCreate fallo\n");
 		return false;
 	}
 
@@ -1000,10 +1010,12 @@ _Bool create_knl(char * table_name, ConsistencyTypes consistency, int partitions
 		MessageHeader * header = malloc(sizeof(MessageHeader));
 		recieve_header(memsocket, header);
 		if(header->type == OPERATION_SUCCESS) {
+			custom_print("\tCreate realizado\n");
 			//log_info(logger, "MEM ANSWERED SUCCESFULLY");
 			exit_value = true;
 		} else {
 			//log_info(logger, "CREATE ERROR");
+			custom_print("\tCreate fallo\n");
 			exit_value = false;
 		}
 		close(memsocket);

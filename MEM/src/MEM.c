@@ -89,17 +89,19 @@ char * config_path;
 void notify_config_thread();
 int main(int argc, char **argv) {
 	if (argc != 2) {
-		config_path = strdup("mem03.cfg");
+		config_path = strdup("mem01.cfg");
 	} else {
 		config_path = strdup(argv[1]);
 	}
 
 	MUTEX_DEBUG_LEVEL = MX_ALL_DISPLAY;
 
+	custom_print("Leyendo Configuracion\n");
 	_read_config();
 	pthread_t config_notify_thread;
 	pthread_create(&config_notify_thread, NULL, notify_config_thread, NULL);
 	pthread_detach(config_notify_thread);
+	custom_print("Configuracion leida y thread iniciado\n");
 
 	gossiping_list = list_create();
 
@@ -108,22 +110,28 @@ int main(int argc, char **argv) {
 	strcat(memory_logger_path, config_get_string_value(config_file, "MEMORY_NUMBER"));
 	strcat(memory_logger_path, ".log");
 	logger = log_create(memory_logger_path, "MEM", false, LOG_LEVEL_TRACE);
+	custom_print("Logger inicializado\n");
 
+	custom_print("Intentando conectar a LFS\n");
 	config.lfs_socket = create_socket();
 	if (config.lfs_socket != -1 && (connect_socket(config.lfs_socket, config.lfs_ip, config.lfs_port)) == -1) {
+		custom_print("No hay LFS\n");
 		log_info(logger, "No hay LFS");
 		return EXIT_FAILURE;
 	}
 
+	custom_print("\tSaludando a LFS\n");
 	send_data(config.lfs_socket, HANDSHAKE_MEM_LFS, 0, null);
 	MessageHeader * header = malloc(sizeof(MessageHeader));
 	recieve_header(config.lfs_socket, header);
 	if(header->type == HANDSHAKE_MEM_LFS_OK) {
+		custom_print("\tLFS responde\n");
 		log_info(logger, "LFS ANSWERED SUCCESFULLY");
 		recv(config.lfs_socket, &config.value_size, sizeof(int), 0);
 
 		log_info(logger, "VALUE SIZE RECIEVED %d", config.value_size);
 	} else {
+		custom_print("\tLFS No responde con exito\n");
 		log_info(logger, "UNEXPECTED HANDSHAKE RESULT");
 		return EXIT_FAILURE;
 	}
@@ -145,9 +153,11 @@ int main(int argc, char **argv) {
 	total_operations = 0;
 	write_operations = 0;
 	read_operations = 0;
+	custom_print("Iniciando metricas\n");
 
 	pthread_t journal_thread;
 	journal_start(&journal_thread);
+	custom_print("Iniciando thread de journal\n");
 
 	//Inicializo las variables globales
 	tabla_segmentos = list_create();
@@ -156,6 +166,7 @@ int main(int argc, char **argv) {
 	mapa_memoria_size = limite_paginas;
 	mapa_memoria = calloc(limite_paginas,sizeof(int));
 	memoria_principal = malloc(config.memsize);
+	custom_print("Iniciando memoria de %d paginas\n", limite_paginas);
 	log_info(logger, "Se pueden almacenar %d páginas", limite_paginas);
 
 	instruction_list = list_create();
@@ -247,6 +258,7 @@ void journal_routine(){
 
 		usleep(config.journal_time * 1000);
 
+		custom_print("\tInicia journal\n");
 		log_info(logger, "Se inicia el JOURNAL por tiempo");
 		journal();
 
@@ -256,7 +268,7 @@ void journal_routine(){
 
 //TODO: Manejar el tema de timestamp desde la funcion que llama a esta
 int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp) {
-	custom_print("Inicio insert(%s,%d,%s,%lu)",nombre_tabla,key,valor,timestamp);
+	custom_print("\tInicia insert\n");
 	//Verifica si existe el segmento de la tabla en la memoria principal
 	if(existe_segmento(nombre_tabla)){
 		log_info(logger, "Ya existe el segmento %s",nombre_tabla);
@@ -267,6 +279,7 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 			log_info(logger, "La pagina ya existia, se va a actualizar");
 			unsigned long timestamp_modificado = unix_epoch();
 			actualizar_pagina(nombre_tabla,key,valor,timestamp, timestamp_modificado);
+			custom_print("\tPagina actualizada\n");
 		} else{
 			log_info(logger, "La pagina no existia");
 		//En caso que no contenga la Key, se solicita una nueva página para almacenar la misma.
@@ -276,22 +289,28 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 				log_info(logger, "Hay paginas disponibles, se crea la pagina");
 				unsigned long timestamp_modificado = unix_epoch();
 				crear_pagina(nombre_tabla,key,valor,timestamp,1, timestamp_modificado);
+				custom_print("\tPagina creada\n");
 			}else{
 				log_info(logger, "No hay paginas disponibles:");
+				custom_print("\tNo hay paginas disponibles\n");
 				//todas las paginas estan llenas con o sin modificar
 				if (memoria_esta_full()){
 					log_info(logger, "\tTodas las paginas estan con flag en 1");
 					//hacer el journaling
 					log_info(logger, "\tEmpiezo journal desde el insert porque esta llena la memoria");
+					custom_print("\t\tDebo hacer journal\n");
 					journal();
+					custom_print("\t\tReintento Insert\n");
 					insert_mem(nombre_tabla,key,valor,timestamp);
 
 				}else {
 					//algoritmo de reemplazo
 					log_info(logger, "\tHay paginas con el flag en 0, se hace lru");
+					custom_print("\tReemplazo\n");
 					sacar_lru();
 					unsigned long timestamp_modificado;
 					crear_pagina(nombre_tabla,key,valor,timestamp,1,timestamp_modificado);
+					custom_print("\tPagina reemplazada\n");
 				}
 			}
 
@@ -300,18 +319,22 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 		//si no existe el segmento crear el segmento y llamar recursivamente a insert_mem
 		//deberia verificar con el fileSystem para ver si se puede agregar sin hacer un create antes
 		log_info(logger, "No existia el segmento %s",nombre_tabla);
+		custom_print("\tNo existe el segmento, lo creo y reintento\n");
 		crear_segmento(nombre_tabla);
 		insert_mem(nombre_tabla,key,valor,timestamp);
 	}
 	total_operations++;
 	write_operations++;
+	custom_print("\tInsert finalizado\n");
 	return EXIT_SUCCESS;
 }
 
 int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, int compaction_time){
+	custom_print("\tInicia Create de %s\n", table_name);
 	log_info(logger, "INICIA CREAR TABLA: create_mem(%s, %d, %d, %d)", table_name, consistency, partitions, compaction_time);
 	int exit_value;
 	send_data(config.lfs_socket, MEM_LFS_CREATE, 0, null);
+	custom_print("\t\tPaso el comando a LFS\n");
 
 	int table_name_len = strlen(table_name)+1;
 
@@ -324,11 +347,15 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 	MessageHeader * header = malloc(sizeof(MessageHeader));
 	recieve_header(config.lfs_socket, header);
 	if(header->type == OPERATION_SUCCESS) {
+		custom_print("\t\tLFS Responde OK\n");
 		log_info(logger, "LFS ANSWERED SUCCESFULLY");
 		log_info(logger, "TABLA CREADA EN EL FILESYSTEM");
 		crear_segmento(table_name);
+		custom_print("\t\tCreo segmento\n");
+		custom_print("\tInsert finalizado\n");
 		exit_value = EXIT_SUCCESS;
 	} else {
+		custom_print("\tInsert fallido\n");
 		log_info(logger, "LFS NO PUDO CREAR LA TABLA");
 		exit_value = EXIT_FAILURE;
 	}
@@ -339,11 +366,12 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 
 
 char * select_mem(char * table_name, int key){
-	custom_print("Inicio select %s, %d", table_name, key);
+	custom_print("\tInicia Select %s %d\n", table_name, key);
 	total_operations++;
 	read_operations++;
 
 	//Buscamos el segmento y verificamos su existencia
+	custom_print("\t\tBusco Segmento\n");
 	segmento_t* segmento_buscado = find_segmento(table_name);
 
 	if(segmento_buscado){
@@ -421,6 +449,7 @@ char * select_mem(char * table_name, int key){
 
 		}
 	} else {
+		custom_print("\t\tSegmento desconocido. Pregunto a LFS\n");
 		log_info(logger, "El segmento %s no existe", table_name);
 		int exit_value;
 
@@ -443,6 +472,7 @@ char * select_mem(char * table_name, int key){
 			recv(config.lfs_socket, value, sizeof(char) * rl, 0);
 
 			log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
+			custom_print("\tLFS informa valor %s\n", value);
 
 			exit_value = EXIT_SUCCESS;
 			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
@@ -472,6 +502,7 @@ char * select_mem(char * table_name, int key){
 					}
 				}
 			} else {
+				custom_print("\tError en SELECT\n");
 				log_info(logger, "SELECT NO SE PUDO REALIZAR");
 
 				exit_value = EXIT_FAILURE;
@@ -484,7 +515,15 @@ char * select_mem(char * table_name, int key){
 			}
 
 
+void inform_table_metadata(MemtableTableReg * reg) {
+	custom_print("\t\t\tTABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s\n",
+			reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
+	log_info(logger, "TABLE %s COMPACTION %d PARTITIONS %d CONSISTENCY %s",
+		reg->table_name, reg->compaction_time, reg->partitions, consistency_to_char(reg->consistency));
+}
+
 t_list * describe_mem(char * table_name){
+	custom_print("\tInicia Describe\n");
 	t_list * result = list_create();
 	log_info(logger, "INICIA DESCRIBE: describe_mem(%s)", table_name);
 	int exit_value = EXIT_FAILURE, f, a;
@@ -497,6 +536,8 @@ t_list * describe_mem(char * table_name){
 		send(config.lfs_socket, &z, sizeof(int), 0);
 		recv(config.lfs_socket, &f, sizeof(int), 0);
 
+		custom_print("\t\tDe todas las tablas\n");
+
 		for(a=0 ; a<f ; a++) {
 			MemtableTableReg * table = malloc(sizeof(MemtableTableReg));
 
@@ -507,11 +548,13 @@ t_list * describe_mem(char * table_name){
 			recv(config.lfs_socket, table->table_name, table_n_l * sizeof(char), 0);
 
 			list_add(result, table);
+			inform_table_metadata(table);
 
 			exit_value = EXIT_SUCCESS;
 		}
 	} else {
 		int table_name_len = strlen(table_name)+1;
+		custom_print("\t\tDe tabla %s\n", table_name);
 		send(config.lfs_socket, &table_name_len,  sizeof(int), 0);
 		send(config.lfs_socket, table_name,       table_name_len, 0);
 
@@ -520,6 +563,7 @@ t_list * describe_mem(char * table_name){
 		if(f == 0) {
 			exit_value = EXIT_FAILURE;
 			list_destroy(result);
+			custom_print("\tDescribe Fallido\n");
 			result = null;
 		} else {
 			MemtableTableReg * table = malloc(sizeof(MemtableTableReg));
@@ -527,6 +571,7 @@ t_list * describe_mem(char * table_name){
 			table->table_name = table_name;
 
 			list_add(result, table);
+			inform_table_metadata(table);
 
 			exit_value = EXIT_SUCCESS;
 		}
@@ -536,16 +581,19 @@ t_list * describe_mem(char * table_name){
 }
 
 int drop_mem(char * table_name){
+	custom_print("\tInicia Drop de %s\n", table_name);
 	log_info(logger, "INICIA DROP: drop_mem(%s)", table_name);
 	total_operations++;
 	//Verifica si existe un segmento de dicha tabla en la
 	//memoria principal y de haberlo libera dicho espacio.
 	if (existe_segmento(table_name)){
+		custom_print("\t\tLiberando segmento\n");
 		liberar_segmento(table_name);
 	}
 	//Informa al FileSystem dicha operación para que este último realice la operación adecuada
 	int exit_value;
 	send_data(config.lfs_socket, MEM_LFS_DROP, 0, null);
+	custom_print("\t\tInformo al LFS\n");
 
 	int table_name_len = strlen(table_name)+1;
 
@@ -555,10 +603,12 @@ int drop_mem(char * table_name){
 	MessageHeader * header = malloc(sizeof(MessageHeader));
 	recieve_header(config.lfs_socket, header);
 	if(header->type == OPERATION_SUCCESS) {
+		custom_print("\t\tEl LFS Dropeo exitosamente\n");
 		log_info(logger, "LFS ANSWERED SUCCESFULLY");
 		log_info(logger, "DROP EN EL FILESYSTEM");
 		exit_value = EXIT_SUCCESS;
 	} else {
+		custom_print("\t\tEl LFS fallo en el drop\n");
 		log_info(logger, "DROP ERROR");
 		exit_value = EXIT_FAILURE;
 	}
@@ -578,7 +628,7 @@ int journal(){
 
 		//Solo se journalea el insert
 
-		custom_print("Se inicia el JOURNAL");
+		custom_print("\tIniciado el Journal\n");
 		int elements_count = list_size(instruction_list);
 		log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
 		Instruction * i;
@@ -633,6 +683,7 @@ int journal(){
 			free_tables(instruction_list);
 			list_clean(instruction_list);
 	}
+	custom_print("\tJournal finalizado\n");
 	r = unlock_mutex(&journal_by_time);
 	return EXIT_SUCCESS;
 }
@@ -658,10 +709,12 @@ int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long ti
 	MessageHeader * header = malloc(sizeof(MessageHeader));
 	recieve_header(config.lfs_socket, header);
 	if(header->type == OPERATION_SUCCESS) {
+		custom_print("\t\t\tInsert procesado en LFS\n");
 		log_info(logger, "LFS ANSWERED SUCCESFULLY");
 		log_info(logger, "INSERT EN EL FILESYSTEM");
 		exit_value = EXIT_SUCCESS;
 	} else {
+		custom_print("\t\t\tInsert fallido en LFS\n");
 		log_info(logger, "LFS NO PUDO INSERTAR EL REGISTRO");
 		exit_value = EXIT_FAILURE;
 	}
@@ -998,13 +1051,16 @@ void liberar_segmento(char* table_name){
 //Gossiping
 void inform_gossiping_pool() {
 	//log_info(logger, "GOSSIPING LIST START");
+	custom_print("GOSSIPING LIST\n");
 
 	int a;
 	for(a = 0 ; a < gossiping_list->elements_count ; a++) {
 		MemPoolData * this_mem = list_get(gossiping_list, a);
 		log_info(logger, "      %d %s:%d", this_mem->memory_id, this_mem->ip, this_mem->port);
+		custom_print("\t%d %s:%d\n", this_mem->memory_id, this_mem->ip, this_mem->port);
 	}
 
+	custom_print("GOSSIPING END\n");
 	//log_info(logger, "GOSSIPING LIST END");
 }
 void add_to_pool(MemPoolData * mem) {
@@ -1116,6 +1172,7 @@ int server_function() {
 			case KNL_MEM_CREATE:
 				{
 					;
+					custom_print("Kernel indica Create\n");
 					log_info(logger, "NEW TABLE WILL BE CREATED");
 
 					int table_name_size;
@@ -1124,6 +1181,8 @@ int server_function() {
 					recv(fd, &table_name_size, sizeof(int), 0);
 					table_name = malloc(sizeof(table_name_size) * sizeof(char));
 					recv(fd, table_name, table_name_size * sizeof(char), 0);
+
+					custom_print("\tTabla %s\n", table_name);
 
 					int consistency, partitions, compaction_time;
 					recv(fd, &consistency, sizeof(int), 0);
@@ -1134,10 +1193,10 @@ int server_function() {
 					creation_result = create_mem(table_name, consistency, partitions, compaction_time);
 
 					if(creation_result == false) {
-						custom_print("Tabla creada %s\n", table_name);
+						custom_print("\t\tTabla creada %s\n", table_name);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					} else {
-						custom_print("ERROR Tabla NO creada %s\n", table_name);
+						custom_print("\t\tERROR Tabla NO creada %s\n", table_name);
 						send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
 					}
 					break;
@@ -1145,6 +1204,8 @@ int server_function() {
 			case KNL_MEM_SELECT:
 				{
 					int table_name_size;
+					custom_print("Kernel indica Select\n");
+
 					char * table_name;
 
 					recv(fd, &table_name_size, sizeof(int), 0);
@@ -1160,13 +1221,13 @@ int server_function() {
 					log_info(logger, "%s", select_result);
 
 					if(select_result == null) {
-						custom_print("Select Fallo %s %d por null\n", table_name, key_select);
+						custom_print("\t\tSelect Fallo %s %d por null\n", table_name, key_select);
 						send_data(fd, SELECT_FAILED_NO_RESULT, 0, null);
 					} else if(strcmp(select_result, "UNKNOWN") == 0) {
-						custom_print("Select Fallo %s %d por unknown\n", table_name, key_select);
+						custom_print("\t\tSelect Fallo %s %d por unknown\n", table_name, key_select);
 						send_data(fd, SELECT_FAILED_NO_RESULT, 0, null);
 					}else{
-						custom_print("Select %s %d = %s\n", table_name, key_select, select_result);
+						custom_print("\t\tSelect %s %d = %s\n", table_name, key_select, select_result);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 						int res_len = strlen(select_result) + 1;
 						send(fd, &res_len, sizeof(int), 0);
@@ -1178,6 +1239,9 @@ int server_function() {
 			case KNL_MEM_INSERT:
 				{
 					int table_name_size;
+
+					custom_print("Kernel indica Insert\n");
+
 					char * table_name;
 
 					recv(fd, &table_name_size, sizeof(int), 0);
@@ -1194,6 +1258,7 @@ int server_function() {
 					recv(fd, value, value_len * sizeof(char), 0);
 					recv(fd, &timestamp, sizeof(long), 0);
 					if(value_len > config.value_size){
+						custom_print("\tEl valor excede el limite\n");
 						log_error(logger, "El valor recibido(%d) es mas grande que el config.value_size(%d)", value_len, config.value_size);
 						send_data(fd, VALUE_SIZE_ERROR, 0, null);
 						break;
@@ -1203,10 +1268,10 @@ int server_function() {
 					insert_result = insert_mem(table_name, key, value, timestamp);
 
 					if(insert_result){
-						custom_print("Insert fallo %s %d %s\n", table_name, key, value);
+						custom_print("\tInsert fallo %s %d %s\n", table_name, key, value);
 						send_data(fd, OPERATION_FAILURE, 0, null);
 					}else{
-						custom_print("Insert realizado %s %d %s\n", table_name, key, value);
+						custom_print("\tInsert realizado %s %d %s\n", table_name, key, value);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}
 					;
@@ -1215,6 +1280,8 @@ int server_function() {
 			case KNL_MEM_DROP:
 				{
 					int table_name_size;
+					custom_print("Kernel indica Drop\n");
+
 					char * table_name;
 
 					recv(fd, &table_name_size, sizeof(int), 0);
@@ -1224,10 +1291,10 @@ int server_function() {
 					int drop_result = drop_mem(table_name);
 
 					if(!drop_result){
-						custom_print("Drop realizado %s\n", table_name);
+						custom_print("\tDrop realizado %s\n", table_name);
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}else{
-						custom_print("Drop fallido %s\n", table_name);
+						custom_print("\tDrop fallido %s\n", table_name);
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}
 
