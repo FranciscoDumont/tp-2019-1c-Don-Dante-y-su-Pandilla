@@ -135,6 +135,8 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
+        free(header);
+
 	pthread_t thread_g;
 	gossiping_start(&thread_g);
 
@@ -332,6 +334,8 @@ int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timesta
 	i->timestamp = timestamp;
 	add_instruction(i);
 
+        free(i);
+
 	custom_print("\tInsert finalizado\n");
 	return EXIT_SUCCESS;
 }
@@ -366,6 +370,8 @@ int create_mem(char * table_name, ConsistencyTypes consistency, int partitions, 
 		log_info(logger, "LFS NO PUDO CREAR LA TABLA");
 		exit_value = EXIT_FAILURE;
 	}
+
+        free(header);
 
 	total_operations++;
 	return exit_value;
@@ -453,7 +459,7 @@ char * select_mem(char * table_name, int key){
 
 				exit_value = EXIT_FAILURE;
 			}
-
+                        free(header);
 		}
 	} else {
 		custom_print("\t\tSegmento desconocido. Pregunto a LFS\n");
@@ -519,6 +525,7 @@ char * select_mem(char * table_name, int key){
 
 		
 					}
+                                free(header);
 								}
 
 			}
@@ -583,6 +590,9 @@ t_list * describe_mem(char * table_name){
 			inform_table_metadata(table);
 
 			exit_value = EXIT_SUCCESS;
+
+                        free(table);
+
 		}
 	}
 
@@ -622,12 +632,16 @@ int drop_mem(char * table_name){
 		exit_value = EXIT_FAILURE;
 	}
 
+        free(header);
+
 	Instruction * i = malloc(sizeof(Instruction));
 	i->table_name = table_name;
 	i->i_type = DROP;
 	custom_print("a agregar en la lista");
 	add_instruction(i);
 	custom_print("agrega2");
+
+        free(i);
 
 	return exit_value;
 }
@@ -720,6 +734,9 @@ int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long ti
 		log_info(logger, "LFS NO PUDO INSERTAR EL REGISTRO");
 		exit_value = EXIT_FAILURE;
 	}
+
+        free(header);
+
 	return exit_value;
 }
 
@@ -1517,6 +1534,9 @@ void execute_mem(comando_t* unComando){
 	}else if (strcmp(comandoPrincipal,"journal")==0){
 		journal();
 	}
+
+        free(i);
+
 }
 
 void info(){
