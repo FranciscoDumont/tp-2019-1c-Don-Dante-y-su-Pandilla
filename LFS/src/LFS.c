@@ -181,6 +181,7 @@ int lfs_server() {
 						custom_print("\tCreacion fallida\n");
 						send_data(fd, CREATE_FAILED_EXISTENT_TABLE, 0, null);
 					}
+					free(table_name);
 				}
 				break;
 			case MEM_LFS_SELECT:
@@ -215,6 +216,7 @@ int lfs_server() {
 						custom_print("\Resultado exitoso %s\n", select_result);
 					}
 					//free(select_result)
+					free(table_name);
 					;
 				}
 				break;
@@ -250,7 +252,7 @@ int lfs_server() {
 
 					int insert_result;
 					insert_result = insert_fs(table_name, key, value, timestamp);
-					free(value);
+					//free(value);
 
 					if(insert_result == 0){
 						custom_print("\tError al insertar, tabla no encontrada\n");
@@ -260,7 +262,8 @@ int lfs_server() {
 						send_data(fd, OPERATION_SUCCESS, 0, null);
 					}
 
-					//free(value);
+					free(value);
+					free(table_name);
 					;
 				}
 				break;
@@ -303,6 +306,7 @@ int lfs_server() {
 							send(fd, &f, sizeof(int), 0);
 							send(fd, table, sizeof(MemtableTableReg), 0);
 						}
+						free(table_name);
 					}
 				}
 				break;
@@ -329,6 +333,7 @@ int lfs_server() {
 						custom_print("\tDROP Fallido\n");
 						send_data(fd, SELECT_FAILED_NO_TABLE_SUCH_FOUND, 0, null);
 					}
+					free(table_name);
 				}
 				break;
 
@@ -458,6 +463,7 @@ void up_filesystem() {
 		closedir(tables_directory);
 	}
 	free(tables_dirent);
+	free(bitarray_ptr);
 
 	custom_print("FILESYSTEM UP\n");
 	log_info(logger, "Filesystem Up");
@@ -691,6 +697,7 @@ void remove_file(char * file_path) {
 	free(remove_command);
 	free(file_config_path);
 	free(file_data);
+	free(file_content);
 
 	save_bitmap_to_fs();
 }
@@ -752,6 +759,7 @@ int insert_fs(char * table_name, int key, char * value, unsigned long timestamp)
 
 	list_add(tablereg->records, registry);
 
+	free(registry);
 	custom_print("\t\tInsert Realizado\n");
 
 	return true;
@@ -800,6 +808,7 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 		fclose(partition);
 
 		free(partition_number_str);
+		free(thispath);
 	}
 
 	table_reg					= malloc(sizeof(MemtableTableReg));
@@ -819,6 +828,8 @@ int create_fs(char * table_name, ConsistencyTypes consistency, int partitions, i
 
 	custom_print("\t\tLa tabla fue creada\n");
 	log_info(logger, "Table created %s", table_name);
+
+	free(table_reg);
 
 	return true;
 }
@@ -889,6 +900,7 @@ t_list * search_key_in_partitions(char * table_name, int key) {
 	free(partition_number_str);
 	free(partition_file);
 	free(partition_content);
+	free(partition_buffer);
 
 	return results;
 }
@@ -930,6 +942,7 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 				reg->value			 = value;
 
 				list_add(results, reg);
+				free(reg);
 			} else {
 				free(value);
 			}
@@ -937,6 +950,7 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 
 		free(temp_file_path);
 		free(content);
+		free(buffer);
 	}
 
 	for(file_counter=0 ; file_counter<table->temp_c->elements_count ; file_counter++) {
@@ -972,6 +986,7 @@ t_list * search_key_in_temp_files(char * table_name, int key) {
 
 		free(temp_file_path);
 		free(content);
+		free(buffer);
 	}
 
 	return results;
@@ -1042,6 +1057,7 @@ int describe_fs(char * table_name) { //table_name puede ser nulo
 						reg->consistency		= char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
 						inform_table_metadata(reg);
+						free(reg);
 					}
 				}
 			}
@@ -1071,6 +1087,8 @@ int describe_fs(char * table_name) { //table_name puede ser nulo
 		reg->consistency		= char_to_consistency(config_get_string_value(config, "CONSISTENCY"));
 
 		inform_table_metadata(reg);
+
+		free(reg);
 
 		custom_print("\t\tFinaliza Describe\n");
 		return true;
@@ -1203,6 +1221,7 @@ void dump_memtable() {
 			sprintf(thisline, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 			strcat(temp_content, thisline);
 
+			free(thisline);
 			counter++;
 		}
 
@@ -1215,6 +1234,7 @@ void dump_memtable() {
 
 		free(temp_content);
 		free(pfilepath);
+		free(dump_multiplier);
 	}
 	custom_print("Dump Finished\n");
 }
@@ -1330,6 +1350,7 @@ void compact(char * table_name) {
 						sprintf(this_line, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 						strcat(new_partition_content, this_line);
 						counter_partition++;
+						free(this_line);
 					} else {
 						if(counter_partition != 0) {
 							strcat(new_partition_content, "\n");
@@ -1338,6 +1359,7 @@ void compact(char * table_name) {
 						sprintf(this_line, "%lu;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
 						strcat(new_partition_content, this_line);
 						counter_partition++;
+						free(this_line);
 					}
 				} else {
 					if(counter_partition != 0) {
@@ -1347,7 +1369,10 @@ void compact(char * table_name) {
 					sprintf(this_line, "%lu;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
 					strcat(new_partition_content, this_line);
 					counter_partition++;
+					free(this_line);
 				}
+				free(value_p);
+				free(reg_p);
 			}
 
 			if(f_tr == 0 && counter_partition != 0) {
@@ -1358,6 +1383,7 @@ void compact(char * table_name) {
 				char * this_line = malloc(3 + config.value_size + 10);
 				sprintf(this_line, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 				strcat(new_partition_content, this_line);
+				free(this_line);
 			}
 
 			remove_file(partition_file);
@@ -1367,7 +1393,13 @@ void compact(char * table_name) {
 
 			free(tnum);
 			free(partition_file);
+			free(value);
+			free(reg);
+			free(buffer_partition);
+			free(new_partition_content);
 		}
+		free(temp_file_path);
+		free(buffer_temp);
 	}
 
 	for(tmp_iterator=0 ; tmp_iterator<table->temp_c->elements_count ; tmp_iterator++) {
@@ -1377,6 +1409,7 @@ void compact(char * table_name) {
 		sprintf(temp_file_path, "Tables/%s/%d.tmpc", table_name, (*file_number));
 
 		remove_file(temp_file_path);
+		free(temp_file_path);
 	}
 	list_clean(table->temp_c);
 
