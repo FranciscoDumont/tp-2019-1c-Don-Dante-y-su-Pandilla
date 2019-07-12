@@ -761,16 +761,15 @@ void add_instruction(Instruction* i){
 	i->table_name = strdup(i->table_name);
 	custom_print("Agregando %s %d", i->table_name, is_drop(i));
 
+
 	if(is_drop(i) && !list_is_empty(instruction_list)){
 		custom_print("Limpiar lista de instrucciones");
 		delete_instructions(i -> table_name);
 
 		custom_print("Lista de instrucciones limpada");
-	}else if(is_drop(i) && list_is_empty(instruction_list)){
-	}else{
+	}else {
 		i->value = strdup(i->value);
 		list_add(instruction_list, i);
-		i = list_get(instruction_list, instruction_list->elements_count-1);
 	}
 
 }
