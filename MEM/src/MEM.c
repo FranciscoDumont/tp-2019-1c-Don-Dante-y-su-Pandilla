@@ -429,7 +429,7 @@ char * select_mem(char * table_name, int key){
 				if (hay_paginas_disponibles()){
 					log_info(logger, "Hay páginas disponibles, la página se creará");
 					unsigned long timestamp = unix_epoch();
-					crear_pagina(table_name,key,value,timestamp,1);//valorkey?
+					crear_pagina(table_name,key,value,timestamp,0);
 					pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
 					log_info(logger, "Se devuelve el valor de la pagina");
 					char* value = get_pagina_value(key_buscada);
@@ -441,12 +441,13 @@ char * select_mem(char * table_name, int key){
 					if (memoria_esta_full()){
 						//Hacer el journal
 						journal();
+						select_mem(table_name, key);
 
 					}else {
 						//ejecutamos el algoritmo de reemplazo
 						log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
 						sacar_lru();
-					//	crear_pagina(table_name,key,valor_key,timestamp,1);
+						select_mem(table_name, key);
 					}
 				}
 			} else {
@@ -479,17 +480,18 @@ char * select_mem(char * table_name, int key){
 			char * value = malloc(sizeof(char) * rl);
 			recv(config.lfs_socket, value, sizeof(char) * rl, 0);
 
-			log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
-			custom_print("\tLFS informa valor %s\n", value);
-			return value;
+			/*log_info(logger, "  EL VALOR RECIBIDO ES %s", value);
+			custom_print("\tLFS informa valor %s\n", value);*/
+			
 
 			exit_value = EXIT_SUCCESS;
-			/*
+			
 			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
+				crear_segmento(table_name);
 				if (hay_paginas_disponibles()){
 					log_info(logger, "Hay páginas disponibles, la página se creará");
 					unsigned long timestamp = unix_epoch();
-					crear_pagina(table_name,key,value,timestamp,1);
+					crear_pagina(table_name,key,value,timestamp,0);
 					pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
 					log_info(logger, "Se devuelve el valor de la pagina");
 					char* value = get_pagina_value(key_buscada);
@@ -501,14 +503,15 @@ char * select_mem(char * table_name, int key){
 					if (memoria_esta_full()){
 						//Hacer el journal
 						journal();
+						select_mem(table_name, key);
 
 					}else {
 						//ejecutamos el algoritmo de reemplazo
 						log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
 						sacar_lru();
-					//	crear_pagina(table_name,key,valor_key,timestamp,1);
-					}
-				}*/
+						select_mem(table_name, key);
+										}
+				}
 		} else {
 			custom_print("\tError en SELECT\n");
 			log_info(logger, "SELECT NO SE PUDO REALIZAR");
