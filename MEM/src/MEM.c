@@ -650,6 +650,30 @@ int journal(){
 	r = lock_mutex(&journal_by_time);
 	if(r == 0){
 
+		//recorro los segmentos
+		int size = list_size(tabla_segmentos);
+		for(int i=0; i<size; i++){
+			segmento_t * s = list_get(tabla_segmentos, i);
+
+			//recorro las paginas
+			int int_cant_pags = list_size(s->paginas);
+			for(int x=0; x<int_cant_pags; x++){
+				pagina_t * unaPagina = list_get(s->paginas, x);
+
+				if(unaPagina->flag_modificado == 1){
+
+					char* nombre_tabla = s->nombre;
+					int key = get_pagina_key(unaPagina);
+					char* value = get_pagina_value(unaPagina);
+					unsigned long timestamp = get_pagina_timestamp(unaPagina);
+
+					insert_into_lfs(nombre_tabla, key, value, timestamp);
+				}
+			}
+		}
+	}
+
+/*
 		//Solo se journalea el insert
 
 		int elements_count = list_size(instruction_list);
@@ -670,7 +694,7 @@ int journal(){
 				log_info(logger, "J\tPaso %d de %d", step, elements_count);
 
 				insert_into_lfs(i->table_name, i->key, i->value, i->timestamp);
-				/*if(modified_page(i -> table_name, i->key)){
+				if(modified_page(i -> table_name, i->key)){
 					custom_print("%s %d %s asdasd\n", i->table_name, i->key, i->value);
 					switch(i -> i_type){
 					case INSERT:
@@ -682,7 +706,7 @@ int journal(){
 						unsigned long timestamp = i -> timestamp;
 						break;
 					}
-				}*/
+				}
 				i = list_get(instruction_list, step++);
 			}
 		}
@@ -693,7 +717,7 @@ int journal(){
 
 		list_clean(instruction_list);
 		custom_print("\tInstrucciones limpiadas\n");
-	}
+	}*/
 	custom_print("\tJournal finalizado\n");
 	r = unlock_mutex(&journal_by_time);
 	return EXIT_SUCCESS;
@@ -1568,7 +1592,14 @@ void tests_memoria(){
 	select_mem("A",2);
 	select_mem("A",3);
 	select_mem("A",4);
-	select_mem("B",5);		
+	select_mem("B",5);
+	int aux = list_size(instruction_list);
+	int i = 0;
+	for(i; i<aux;i++){
+		Instruction* xxx = list_get(instruction_list, i);
+		segmento_t* yyy = list_get(tabla_segmentos, i);
+		//hola
+	}
 	mostrarPaginas();
 
 	//Test paginas
