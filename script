@@ -9,20 +9,20 @@ cd ..
 
 cd KNL/src
 make
-cd ..
 mv KNL ./../
+cd ..
 cd ..
 
 cd LFS/src
 make
-cd ..
 mv LFS ./../
+cd ..
 cd ..
 
 cd MEM/src
 make
-cd ..
 mv MEM ./../
+cd ..
 cd ..
 
 clear
