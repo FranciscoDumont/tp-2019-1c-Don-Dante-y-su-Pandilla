@@ -228,6 +228,15 @@ void running(int n) {
 			} else {
 				//log_info(logger, "RUNNING THREAD %d - NO LQL\n", n);
 			}
+		} else {
+			if (this_core_lql != null) {
+				lock_mutex(&ready_queue_mutex);
+					this_core_lql->state = READY;
+					list_add(ready_queue, this_core_lql);
+				unlock_mutex(&ready_queue_mutex);
+				this_core_lql->quantum_counter = 0;
+				this_core_lql = null;
+			}
 		}
 		usleep(config.exec_delay * 1000);
 	}
