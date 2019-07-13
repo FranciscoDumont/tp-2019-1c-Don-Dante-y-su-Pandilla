@@ -462,8 +462,8 @@ void up_filesystem() {
 		}
 		closedir(tables_directory);
 	}
-	free(tables_dirent);
-	free(bitarray_ptr);
+	//free(tables_dirent);
+	//free(bitarray_ptr);
 
 	custom_print("FILESYSTEM UP\n");
 	log_info(logger, "Filesystem Up");
