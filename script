@@ -1,7 +1,13 @@
-git clone https://github.com/sisoputnfrba/so-commons-library.git
-cd so-commons-library
-sudo make install
-cd ..
+#!/bin/bash
+
+read -p "Instalar las commons ? (y/N)" -n 1 -r
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+	git clone https://github.com/sisoputnfrba/so-commons-library.git
+	cd so-commons-library
+	sudo make install
+	cd ..
+fi
 
 cd dalibrary
 sudo make install
@@ -9,20 +15,20 @@ cd ..
 
 cd KNL/src
 make
-cd ..
 mv KNL ./../
+cd ..
 cd ..
 
 cd LFS/src
 make
-cd ..
 mv LFS ./../
+cd ..
 cd ..
 
 cd MEM/src
 make
-cd ..
 mv MEM ./../
+cd ..
 cd ..
 
 clear
