@@ -718,6 +718,7 @@ int journal(){
 		list_clean(instruction_list);
 		custom_print("\tInstrucciones limpiadas\n");
 	}*/
+	limpiar_estructuras();
 	custom_print("\tJournal finalizado\n");
 	r = unlock_mutex(&journal_by_time);
 	return EXIT_SUCCESS;
@@ -1050,6 +1051,16 @@ void sacar_lru(){
 	free(pagina_lru);
 
 	return;
+}
+
+
+void limpiar_estructuras(){
+	//recorro los segmentos
+	int size = list_size(tabla_segmentos);
+	for(int i=0; i<size; i++){
+		segmento_t * s = list_get(tabla_segmentos, 0);
+		liberar_segmento(s->nombre);
+	}
 }
 
 
