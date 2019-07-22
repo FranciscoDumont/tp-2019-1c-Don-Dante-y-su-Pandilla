@@ -1038,6 +1038,20 @@ void liberar_segmento(char* table_name){
 }
 
 
+char* mapa_memoria_to_string(){
+	char* resultado = string_new();
+	string_append(&resultado, string_itoa(mapa_memoria_size));
+	string_append(&resultado, " [");
+	int i;
+	for(i=0; i<mapa_memoria_size; i++){
+		string_append(&resultado, string_itoa(mapa_memoria[i]));
+		string_append(&resultado, "|");
+	}
+	string_append(&resultado, "]");
+	return resultado;
+}
+
+
 //Gossiping
 void inform_gossiping_pool() {
 	//log_info(logger, "GOSSIPING LIST START");
@@ -1528,24 +1542,15 @@ void info(){
 }
 
 void tests_memoria(){
-	/* A TESTEAR:
-	void crear_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp,int un_flag_modificado);
-	void crear_segmento(char* nombre_tabla);
-	segmento_t* find_segmento(char* segmento_buscado);
-	pagina_t* find_pagina_en_segmento(int key_buscado,segmento_t* segmento_buscado);
-	int obtener_tamanio_pagina();
-	void actualizar_pagina(char* nombre_tabla,int key,char* valor,unsigned long timestamp);
-	void sacar_lru();
-	int hay_paginas_disponibles();
-	int memoria_esta_full();
-	int insert_mem(char * nombre_tabla, int key, char * valor, unsigned long timestamp);
-	int existe_segmento(char* );
-	int existe_pagina_en_segmento(int pagina_buscada,segmento_t* );
 
-	unsigned long get_pagina_timestamp(pagina_t* una_pagina);
-	int get_pagina_key(pagina_t* una_pagina);
-	char* get_pagina_value(pagina_t* una_pagina);
-	*/
+	t_log * test_logger;
+	test_logger = log_create("memory_tests.log", "MEM", true, LOG_LEVEL_TRACE);
+	int tests_run = 0;
+	int tests_fail = 0;
+	//mem_assert recive mensaje de error y una condicion, si falla el test lo loggea
+	#define mem_assert(message, test) do { if (!(test)) { log_error(test_logger, message); tests_fail++; } tests_run++; } while (0)
+
+
 	insert_mem("A",1,"valor1",unix_epoch());
 	insert_mem("A",2,"valor2",unix_epoch());
 	insert_mem("A",3,"valor3",unix_epoch());
@@ -1565,25 +1570,33 @@ void tests_memoria(){
 
 	set_pagina_timestamp(pagina_test, 6969ul);
 	unsigned long ts = get_pagina_timestamp(pagina_test);
-	log_info(logger, "Pagina_timestamp: %lu", ts);
+	mem_assert("set_pagina_timestamp", ts == 6969ul);
 	
 	set_pagina_key(pagina_test, 808);
 	int k = get_pagina_key(pagina_test);
-	log_info(logger, "Pagina_key: %d", k);
+	mem_assert("set_pagina_key", k == 808);
 
 	set_pagina_value(pagina_test, "juega lanus");
 	char* v = get_pagina_value(pagina_test);
-	log_info(logger, "Pagina_value: %s", v);
+	mem_assert("set_pagina_value", strcmp(v, "juega lanus")==0 );
 
 	//Test segmentos
 	crear_segmento("un_segmento");
 	segmento_t* s = find_segmento("un_segmento");
-	char* mensaje_segmento = strcmp(s->nombre,"un_segmento")==0 ? "find_segmento: BIEN" : "find_segmento: MAL";
-	log_info(logger, mensaje_segmento);
+	mem_assert("find_segmento", strcmp(s->nombre,"un_segmento")==0);
 
-
+	//Test Journal
+	log_warning(test_logger, mapa_memoria_to_string());
 	journal();
+	int mapa_ocupado=0;
+	for(int i=0; i<mapa_memoria_size; i++){
+		mapa_ocupado += mapa_memoria[i];
+	}
+	mem_assert("journal libera memoria", mapa_ocupado==0 );
+	log_warning(test_logger, mapa_memoria_to_string());
 
 	//describe_mem("C");
 	//drop_mem("C");
+	log_warning(test_logger, "Pasaron %d de %d tests", tests_run-tests_fail, tests_run);
+	log_destroy(test_logger);
 }
