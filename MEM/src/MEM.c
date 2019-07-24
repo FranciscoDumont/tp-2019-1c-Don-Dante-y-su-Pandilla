@@ -391,7 +391,7 @@ char * select_mem(char * table_name, int key){
 			log_info(logger, "La key %d no está contenida en el segmento %s", key, table_name);
 			log_info(logger, "Enviando petición a LFS...");
 			int exit_value;
-			 
+
 			send_data(config.lfs_socket, MEM_LFS_SELECT, 0, null);
 			int table_name_len = strlen(table_name)+1;
 
@@ -425,7 +425,7 @@ char * select_mem(char * table_name, int key){
 					return value;
 				}else{
 					log_info(logger, "No hay páginas disponibles");
-			
+
 					if (memoria_esta_full()){
 						//Hacer el journal
 						journal();
@@ -473,41 +473,41 @@ char * select_mem(char * table_name, int key){
 
 			exit_value = EXIT_SUCCESS;
 			//Si el filesystem responde la solicitud con éxito creo una pagina nueva
-				if (hay_paginas_disponibles()){
-					log_info(logger, "Hay páginas disponibles, la página se creará");
-					unsigned long timestamp = unix_epoch();
-					crear_pagina(table_name,key,value,timestamp,0);
-					pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
-					log_info(logger, "Se devuelve el valor de la pagina");
-					char* value = get_pagina_value(key_buscada);
-					log_info(logger, "VALOR= %s", value);
-					return value;
-				}else{
-					log_info(logger, "No hay páginas disponibles");
-			
-					if (memoria_esta_full()){
-						//Hacer el journal
-						journal();
+			if (hay_paginas_disponibles()){
+				log_info(logger, "Hay páginas disponibles, la página se creará");
+				unsigned long timestamp = unix_epoch();
+				crear_pagina(table_name,key,value,timestamp,0);
+				pagina_t* key_buscada = find_pagina_en_segmento(key, segmento_buscado);
+				log_info(logger, "Se devuelve el valor de la pagina");
+				char* value = get_pagina_value(key_buscada);
+				log_info(logger, "VALOR= %s", value);
+				return value;
+			}else{
+				log_info(logger, "No hay páginas disponibles");
 
-					}else {
-						//ejecutamos el algoritmo de reemplazo
-						log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
-						sacar_lru();
-						select_mem(table_name, key);
-										}
+				if (memoria_esta_full()){
+					//Hacer el journal
+					journal();
+
+				}else {
+					//ejecutamos el algoritmo de reemplazo
+					log_info(logger, "\tSe ejecutará el algoritmo de reemplazo(LRU)...");
+					sacar_lru();
+					select_mem(table_name, key);
 				}
-			} else {
-				custom_print("\tError en SELECT\n");
-				log_info(logger, "SELECT NO SE PUDO REALIZAR");
-
-				exit_value = EXIT_FAILURE;
-			
-
-		
-					}
-								}
-
 			}
+		} else {
+			custom_print("\tError en SELECT\n");
+			log_info(logger, "SELECT NO SE PUDO REALIZAR");
+
+			exit_value = EXIT_FAILURE;
+
+
+
+		}
+	}
+
+}
 
 
 void inform_table_metadata(MemtableTableReg * reg) {
@@ -621,62 +621,30 @@ int journal(){
 	r = lock_mutex(&journal_by_time);
 	if(r == 0){
 
-		//Solo se journalea el insert
+		//recorro los segmentos
+		int size = list_size(tabla_segmentos);
+		for(int i=0; i<size; i++){
+			segmento_t * s = list_get(tabla_segmentos, i);
 
-		custom_print("\tIniciado el Journal\n");
-		int elements_count = list_size(instruction_list);
-		log_info(logger, "J\tEl tamaño de la lista de instrucciones es: %d", elements_count);
-		Instruction * i;
-		i = list_get(instruction_list, 0);
-		int step = 1;
-	
-		if(0 == elements_count){
-			log_info(logger, "No hay instrucciones para journalear");
-		}else{
-			while(step <= elements_count){
-				log_info(logger, "J\tPaso %d de %d", step, elements_count);
-				if(modified_page(i -> table_name, i->key)){
-					switch(i -> i_type){
-						case INSERT:
-							log_info(logger, "J\tEs un INSERT");
+			//recorro las paginas
+			int int_cant_pags = list_size(s->paginas);
+			for(int x=0; x<int_cant_pags; x++){
+				pagina_t * unaPagina = list_get(s->paginas, x);
 
-							char * nombre_tabla = i -> table_name;
-							int key = i -> key;
-							char * valor = i -> value;
-							unsigned long timestamp = i -> timestamp;
-							insert_into_lfs(nombre_tabla, key, valor, timestamp);
+				if(unaPagina->flag_modificado == 1){
 
-							}
-							break;
-							/*
-						case CREATE:
-							log_info(logger, "J\tEs un CREATE");
-							create_mem(i -> table_name, i -> c_type, i -> partitions, i -> compaction_time);
-							break;
-							 */
-					}
+					char* nombre_tabla = s->nombre;
+					int key = get_pagina_key(unaPagina);
+					char* value = get_pagina_value(unaPagina);
+					unsigned long timestamp = get_pagina_timestamp(unaPagina);
+
+					insert_into_lfs(nombre_tabla, key, value, timestamp);
 				}
-				/*
-				else {
-					switch(i -> i_type){
-						case SELECT:
-							log_info(logger, "J\tEs un SELECT");
-							select_mem(i -> table_name, i -> key);
-							break;
-						case DESCRIBE:
-							log_info(logger, "J\tEs un DESCRIBE");
-							describe_mem(i -> table_name);
-							break;
-					}
-
-				}
-				 */
-				i = list_get(instruction_list, step);
-				step++;
 			}
-
-			free_tables(instruction_list);
-			list_clean(instruction_list);
+		}
+		//En este punto todas las paginas con flag 1 fueron guardadas en LFS
+		// "Una vez efectuados estos envíos se procederá a eliminar los segmentos actuales."
+		free_tables();
 	}
 	custom_print("\tJournal finalizado\n");
 	r = unlock_mutex(&journal_by_time);
@@ -717,30 +685,14 @@ int insert_into_lfs(char * nombre_tabla, int key, char * valor, unsigned long ti
 }
 
 
-int modified_page(char * table_name, int key){
+void free_tables(){	//borra todos los segmentos
 
-	segmento_t * aux_segment = find_segmento(table_name);
-	pagina_t * aux_page = find_pagina_en_segmento(key, aux_segment);
-
-	return aux_page -> flag_modificado;
-}
-
-
-void free_tables(){
-
-	int elements_count = list_size(instruction_list);
-	Instruction * i;
-	i = list_get(instruction_list, 0);
-	int step = 1;
-
-	while(step <= elements_count){
-
-		liberar_segmento(i -> table_name);
-
-		i = list_get(instruction_list, step);
-		step++;
+	int size = list_size(tabla_segmentos);
+	for(int i=0; i<size; i++){
+		segmento_t* un_segmento = list_get(tabla_segmentos, 0);
+		char* nombre = un_segmento->nombre;
+		liberar_segmento(nombre);
 	}
-
 }
 
 
@@ -828,7 +780,7 @@ void get_memoria_libre(pagina_t* una_pagina){
 
 	}
 	mapa_memoria[i] = 1;
-	log_info(logger, "Mapa memoria consigue el indice: %d/%d", i, mapa_memoria_size);
+	log_info(logger, "Mapa memoria consigue el indice: %d/%d", i, mapa_memoria_size-1);
 	void* nuevo_puntero_a_memoria = memoria_principal+i*obtener_tamanio_pagina();
 
 	una_pagina->puntero_memoria = nuevo_puntero_a_memoria;
@@ -968,12 +920,9 @@ void mostrarPaginas(){
 			unsigned long ts = get_pagina_timestamp(t);
 			char * valor = get_pagina_value(t);
 			log_info(logger, "pagina %d timestamp %u valor = %s", t->nro_pagina, ts, valor);
-										  }
-										
-
-							 }
-
-					  }
+		}
+	}
+}
 
 void usar_pagina(pagina_t* pagina){
 	pagina->ultimo_uso = unix_epoch();
@@ -1363,8 +1312,6 @@ void execute_mem(comando_t* unComando){
 	strcpy(parametro4,unComando->parametro[3]);
 	strcpy(parametro5,unComando->parametro[4]);
 
-	Instruction * i = malloc(sizeof(Instruction));
-
 	//SELECT
 	if(strcmp(comandoPrincipal,"select")==0){
 		if(parametro1[0] == '\0'){
@@ -1374,25 +1321,6 @@ void execute_mem(comando_t* unComando){
 			custom_print("select no recibio la key\n");
 			return;
 		}else{
-
-			/*
-			i -> i_type = SELECT;
-
-			//destino, origen
-			strcpy(i -> table_name, table_name);
-
-
-			i -> key = key;
-
-			i -> value = NULL;
-
-			i-> c_type = NULL;
-			i-> partitions = NULL;
-			i-> compaction_time = NULL;
-
-			add_instruction(i);
-			*/
-
 			char * v = select_mem(parametro1, atoi(parametro2));
 			custom_print("   El valor es %s", v);
 		}
@@ -1409,31 +1337,14 @@ void execute_mem(comando_t* unComando){
 			custom_print("insert no recibio el valor\n");
 			return;
 		}else {
-
 			
-			i -> i_type = INSERT;
-			i -> table_name = malloc(sizeof(char) * (strlen(parametro1)+1));
-
-			//destino, origen
-			strcpy(i -> table_name, parametro1);
-
-			i -> key = atoi(parametro2);
-
-			i -> value = malloc(sizeof(char) * (strlen(parametro3)+1));
-			strcpy(i -> value, parametro3);
-
-			i-> c_type = 0;
-			i-> partitions = 0;
-			i-> compaction_time = 0;
-					    
+			unsigned long timestamp;
 			if (parametro4[0] == '\0'){
-				i -> timestamp = unix_epoch();
+				timestamp = unix_epoch();
 			} else {			    
-				i -> timestamp = strtoul(parametro4,NULL,10);
+				timestamp = strtoul(parametro4,NULL,10);
 			}
-			insert_mem(parametro1,atoi(parametro2),parametro3, i->timestamp);
-
-			add_instruction(i);
+			insert_mem(parametro1,atoi(parametro2),parametro3, timestamp);
 		}
 
 	//CREATE
@@ -1451,48 +1362,12 @@ void execute_mem(comando_t* unComando){
 			custom_print("create no recibio el tiempo de compactacion\n");
 			return;
 		}else {
-
-			/*
-			i -> i_type = CREATE;
-
-			//destino, origen
-			i -> table_name = NULL;
-
-			i -> key = NULL;
-
-			i -> value = NULL;
-
-			i-> c_type = consistency;
-			i-> partitions = partitions;
-			i-> compaction_time = compaction_time;
-
-			add_instruction(i);
-			*/
-
 			create_mem(parametro1,char_to_consistency(parametro2),atoi(parametro3),atoi(parametro4));
 		}
 	
 	//DESCRIBE
 	}else if (strcmp(comandoPrincipal,"describe")==0){
 		//chekea si parametro es nulo adentro de describe_mem
-
-		/*
-		i -> i_type = DESCRIBE;
-
-		//destino, origen
-		strcpy(i -> table_name, nombre_tabla);
-
-		i -> key = NULL;
-
-		i -> value = NULL;
-
-		i-> c_type = NULL;
-		i-> partitions = NULL;
-		i-> compaction_time = NULL;
-
-		add_instruction(i);
-		*/
-
 		describe_mem(parametro1);
 
 	//DROP
@@ -1501,29 +1376,11 @@ void execute_mem(comando_t* unComando){
 			custom_print("drop no recibio el nombre de la tabla\n");
 		}else drop_mem(parametro1);
 
-		//ESTE NO SE JOURNALEA
-
-		/*
-		i -> i_type = DROP;
-
-		//destino, origen
-		strcpy(i -> table_name, nombre_tabla);
-
-		i -> key = NULL;
-
-		i -> value = NULL;
-
-		i-> c_type = NULL;
-		i-> partitions = NULL;
-		i-> compaction_time = NULL;
-
-		add_instruction(i);
-		*/
-
-
 	//INFO
 	}else if (strcmp(comandoPrincipal,"info")==0){
 		info();
+
+	//JOURNAL
 	}else if (strcmp(comandoPrincipal,"journal")==0){
 		journal();
 	}
@@ -1563,6 +1420,18 @@ void tests_memoria(){
 	select_mem("B",5);		
 	mostrarPaginas();
 
+	//Test Journal
+
+	log_warning(test_logger, mapa_memoria_to_string());
+	journal();
+	int mapa_ocupado=0;
+	for(int i=0; i<mapa_memoria_size; i++){
+		mapa_ocupado += mapa_memoria[i];
+	}
+	mem_assert("journal libera memoria", mapa_ocupado==0 );
+	log_warning(test_logger, mapa_memoria_to_string());
+
+	// Test pagina y Test segmentos modifican los resultados del journal por eso van ultimos
 	//Test paginas
 	pagina_t* pagina_test = malloc(sizeof(pagina_t));
 	pagina_test->flag_modificado = 0;
@@ -1571,7 +1440,7 @@ void tests_memoria(){
 	set_pagina_timestamp(pagina_test, 6969ul);
 	unsigned long ts = get_pagina_timestamp(pagina_test);
 	mem_assert("set_pagina_timestamp", ts == 6969ul);
-	
+
 	set_pagina_key(pagina_test, 808);
 	int k = get_pagina_key(pagina_test);
 	mem_assert("set_pagina_key", k == 808);
@@ -1584,16 +1453,6 @@ void tests_memoria(){
 	crear_segmento("un_segmento");
 	segmento_t* s = find_segmento("un_segmento");
 	mem_assert("find_segmento", strcmp(s->nombre,"un_segmento")==0);
-
-	//Test Journal
-	log_warning(test_logger, mapa_memoria_to_string());
-	journal();
-	int mapa_ocupado=0;
-	for(int i=0; i<mapa_memoria_size; i++){
-		mapa_ocupado += mapa_memoria[i];
-	}
-	mem_assert("journal libera memoria", mapa_ocupado==0 );
-	log_warning(test_logger, mapa_memoria_to_string());
 
 	//describe_mem("C");
 	//drop_mem("C");
