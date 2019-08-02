@@ -56,3 +56,10 @@ dkms.conf
 /.metadata/
 
 *language.settings.xml
+
+*.tmp
+
+# Executables
+KNL/KNL
+LFS/LFS
+MEM/MEM

@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
 	pthread_t mem_console_id;
 	pthread_create(&mem_console_id, NULL, consola_mem, NULL);
 	
-	tests_memoria();
+	//tests_memoria();
 
 	pthread_join(thread_g, NULL);
 	pthread_join(thread_server, NULL);
