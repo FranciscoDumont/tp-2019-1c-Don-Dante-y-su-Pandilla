@@ -1202,6 +1202,8 @@ void dump_memtable() {
 			strcat(temp_content, thisline);
 
 			counter++;
+
+			free(thisline);
 		}
 
 		char * pfilepath = malloc(sizeof(char) * (12 + strlen(table->table_name) + 3 + 1));
@@ -1213,6 +1215,7 @@ void dump_memtable() {
 
 		free(temp_content);
 		free(pfilepath);
+		//free(dump_multiplier);
 	}
 	custom_print("Dump Finished\n");
 }
@@ -1260,6 +1263,9 @@ void compact(char * table_name) {
 		sprintf(temp_file_path, "Tables/%s/%d.tmpc", table_name, (*file_number));
 
 		char * file_content		= get_file_contents(temp_file_path);
+
+		free(temp_file_path);
+
 		char * buffer_temp		= malloc(strlen(file_content) * sizeof(char));
 
 		int f_tr;
@@ -1327,6 +1333,8 @@ void compact(char * table_name) {
 						sprintf(this_line, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 						strcat(new_partition_content, this_line);
 						counter_partition++;
+
+						free(this_line);
 					} else {
 						if(counter_partition != 0) {
 							strcat(new_partition_content, "\n");
@@ -1335,6 +1343,8 @@ void compact(char * table_name) {
 						sprintf(this_line, "%lu;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
 						strcat(new_partition_content, this_line);
 						counter_partition++;
+
+						free(this_line);
 					}
 				} else {
 					if(counter_partition != 0) {
@@ -1344,7 +1354,13 @@ void compact(char * table_name) {
 					sprintf(this_line, "%lu;%d;%s", reg_p->timestamp, reg_p->key, reg_p->value);
 					strcat(new_partition_content, this_line);
 					counter_partition++;
+
+					free(this_line);
 				}
+
+				free(value_p);
+				free(reg_p);
+
 			}
 
 			if(f_tr == 0 && counter_partition != 0) {
@@ -1355,6 +1371,8 @@ void compact(char * table_name) {
 				char * this_line = malloc(3 + config.value_size + 10);
 				sprintf(this_line, "%lu;%d;%s", reg->timestamp, reg->key, reg->value);
 				strcat(new_partition_content, this_line);
+
+				free(this_line);
 			}
 
 			remove_file(partition_file);
@@ -1364,7 +1382,16 @@ void compact(char * table_name) {
 
 			free(tnum);
 			free(partition_file);
+
+			free(value);
+			free(reg);
+			free(buffer_partition);
+			free(new_partition_content);
+
 		}
+
+		free(buffer_temp);
+
 	}
 
 	for(tmp_iterator=0 ; tmp_iterator<table->temp_c->elements_count ; tmp_iterator++) {
@@ -1374,6 +1401,8 @@ void compact(char * table_name) {
 		sprintf(temp_file_path, "Tables/%s/%d.tmpc", table_name, (*file_number));
 
 		remove_file(temp_file_path);
+
+		free(temp_file_path);
 	}
 	list_clean(table->temp_c);
 
