@@ -566,7 +566,6 @@ Instruction * parse_lql_line(LQLScript * script) {
 		char * line = script->line;
 
 		if(line == NULL || string_equals_ignore_case(line, "")){
-			custom_print("ERROR");
 			return null;
 		}
 
