@@ -289,7 +289,7 @@ _Bool exec_lql_line(LQLScript * lql) {
 
 	_Bool op_return = false;
 	if(i->i_type == UNKNOWN_OP_TYPE)
-		return true;
+		return false;
 	print_op_debug(i);
 
 	lock_mutex(&criterions_mutex);
