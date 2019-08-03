@@ -320,7 +320,8 @@ _Bool exec_lql_line(LQLScript * lql) {
 void journal_to_memories_list(t_list * memories) {
 	int i, memsocket;
 	for(i=0 ; i<memories->elements_count ; i++) {
-		MemPoolData * m = list_get(memories, i);
+		int * did = list_get(memories, i);
+		MemPoolData * m = getMemoryData(*did);
 		if ((memsocket = create_socket()) == -1) {
 			memsocket = -1;
 		}
