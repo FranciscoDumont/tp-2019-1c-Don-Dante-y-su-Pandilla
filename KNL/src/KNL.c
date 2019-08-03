@@ -284,10 +284,12 @@ void print_op_debug(Instruction * i) {
 
 _Bool exec_lql_line(LQLScript * lql) {
 	Instruction * i = parse_lql_line(lql);
+	
+	if(i==null) return true;
 
 	_Bool op_return = false;
 	if(i->i_type == UNKNOWN_OP_TYPE)
-		return false;
+		return true;
 	print_op_debug(i);
 
 	lock_mutex(&criterions_mutex);
